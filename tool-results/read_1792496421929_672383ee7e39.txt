@@ -1,0 +1,869 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useRef, useState } from "react";
+     4→import {
+     5→  MDXEditor,
+     6→  MDXEditorMethods,
+     7→  headingsPlugin,
+     8→  listsPlugin,
+     9→  linkPlugin,
+    10→  linkDialogPlugin,
+    11→  quotePlugin,
+    12→  thematicBreakPlugin,
+    13→  markdownShortcutPlugin,
+    14→  codeBlockPlugin,
+    15→  imagePlugin,
+    16→  tablePlugin,
+    17→  toolbarPlugin,
+    18→  UndoRedo,
+    19→  BoldItalicUnderlineToggles,
+    20→  ListsToggle,
+    21→  BlockTypeSelect,
+    22→  CreateLink,
+    23→  InsertImage,
+    24→  InsertTable,
+    25→  InsertThematicBreak,
+    26→  CodeToggle,
+    27→  Separator,
+    28→} from "@mdxeditor/editor";
+    29→import "@mdxeditor/editor/style.css";
+    30→import {
+    31→  Card,
+    32→  CardContent,
+    33→  CardDescription,
+    34→  CardHeader,
+    35→  CardTitle,
+    36→} from "@/components/ui/card";
+    37→import { Button } from "@/components/ui/button";
+    38→import { Input } from "@/components/ui/input";
+    39→import { Textarea } from "@/components/ui/textarea";
+    40→import { Label } from "@/components/ui/label";
+    41→import {
+    42→  Select,
+    43→  SelectContent,
+    44→  SelectItem,
+    45→  SelectTrigger,
+    46→  SelectValue,
+    47→} from "@/components/ui/select";
+    48→import {
+    49→  ArrowLeft,
+    50→  CheckCircle2,
+    51→  Eye,
+    52→  EyeOff,
+    53→  Image as ImageIcon,
+    54→  Info,
+    55→  Redo2,
+    56→  Save,
+    57→  Send,
+    58→  Undo2,
+    59→  AlertTriangle,
+    60→} from "lucide-react";
+    61→import { toast } from "sonner";
+    62→import { Link } from "@/lib/router";
+    63→import {
+    64→  useAuthors,
+    65→  useContentStore,
+    66→  useMedia,
+    67→} from "@/lib/content-store";
+    68→import type { PageContent, PageStatus } from "@/lib/types";
+    69→import { ConfirmDialog } from "./ConfirmDialog";
+    70→import { MediaPickerDialog } from "./MediaPickerDialog";
+    71→import { SeoEditor } from "./SeoEditor";
+    72→import { StatusBadge } from "./StatusBadge";
+    73→
+    74→interface PageEditorProps {
+    75→  slug: string;
+    76→}
+    77→
+    78→const SLUG_REGEX = /^[a-z0-9-]+$/;
+    79→const SAVE_DEBOUNCE_MS = 500;
+    80→const MAX_HISTORY = 50;
+    81→
+    82→type EditorSnapshot = {
+    83→  title: string;
+    84→  slug: string;
+    85→  excerpt: string;
+    86→  bodyHtml: string;
+    87→  featuredImage: string;
+    88→  authorId: string;
+    89→  status: PageStatus;
+    90→  publishedAt: string | undefined;
+    91→  seo: PageContent["seo"];
+    92→};
+    93→
+    94→function toSnapshot(p: PageContent): EditorSnapshot {
+    95→  return {
+    96→    title: p.title,
+    97→    slug: p.slug,
+    98→    excerpt: p.excerpt ?? "",
+    99→    bodyHtml: p.bodyHtml ?? "",
+   100→    featuredImage: p.featuredImage ?? "",
+   101→    authorId: p.authorId ?? "",
+   102→    status: p.status,
+   103→    publishedAt: p.publishedAt,
+   104→    seo: { ...p.seo },
+   105→  };
+   106→}
+   107→
+   108→/**
+   109→ * Two-pane page editor. The main column holds the title, slug, excerpt,
+   110→ * featured image, and the MDXEditor body. The right sidebar holds the
+   111→ * status block (save draft / publish / unpublish / preview), SEO fields,
+   112→ * and publication settings.
+   113→ *
+   114→ * Workflow: local React state mirrors the page's editable fields. A debounced
+   115→ * save flushes to the content store (`updatePage`) every 500ms while typing.
+   116→ * Publish snapshots the current draft via `publishPage`; Unpublish sets the
+   117→ * status to archived via `unpublishPage`.
+   118→ *
+   119→ * Undo/redo maintains a local history of editor snapshots (max 50 entries).
+   120→ */
+   121→export function PageEditor({ slug }: PageEditorProps) {
+   122→  const { getPage, updatePage, publishPage, unpublishPage } = useContentStore();
+   123→  const authors = useAuthors();
+   124→  const media = useMedia();
+   125→  const page = getPage(slug);
+   126→
+   127→  const [snapshot, setSnapshot] = useState<EditorSnapshot | null>(() =>
+   128→    page ? toSnapshot(page) : null
+   129→  );
+   130→  const [history, setHistory] = useState<EditorSnapshot[]>([]);
+   131→  const [historyIndex, setHistoryIndex] = useState(-1);
+   132→  const [dirty, setDirty] = useState(false);
+   133→  const [lastSavedAt, setLastSavedAt] = useState<string | null>(
+   134→    page?.updatedAt ?? null
+   135→  );
+   136→  const [saving, setSaving] = useState(false);
+   137→  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+   138→  const [publishOpen, setPublishOpen] = useState(false);
+   139→  const [unpublishOpen, setUnpublishOpen] = useState(false);
+   140→  const [navigateAwayOpen, setNavigateAwayOpen] = useState(false);
+   141→  const [pendingNav, setPendingNav] = useState<string | null>(null);
+   142→  const [slugEditedByUser, setSlugEditedByUser] = useState(false);
+   143→
+   144→  const mdxRef = useRef<MDXEditorMethods | null>(null);
+   145→  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   146→  const dirtyRef = useRef(false);
+   147→
+   148→  // Keep the dirty ref in sync so the re-sync effect can skip overwriting
+   149→  // in-progress typing when a debounced save mutates state.pages.
+   150→  useEffect(() => {
+   151→    dirtyRef.current = dirty;
+   152→  }, [dirty]);
+   153→
+   154→  // Re-sync snapshot when the page slug changes (navigating between editors)
+   155→  // OR when an external mutation lands in the store (e.g. another tab edits
+   156→  // the same page). We skip the re-sync when the user has unsaved local
+   157→  // changes — publish / unpublish explicitly re-sync in their own handlers.
+   158→  useEffect(() => {
+   159→    if (dirtyRef.current) return;
+   160→    const current = getPage(slug);
+   161→    if (current) {
+   162→      const snap = toSnapshot(current);
+   163→      setSnapshot(snap);
+   164→      setHistory([snap]);
+   165→      setHistoryIndex(0);
+   166→      setSlugEditedByUser(false);
+   167→      setLastSavedAt(current.updatedAt);
+   168→      // Reset the MDXEditor's internal markdown the next tick.
+   169→      const md = current.bodyHtml ?? "";
+   170→      setTimeout(() => mdxRef.current?.setMarkdown(md), 0);
+   171→    }
+   172→  }, [slug, getPage]);
+   173→
+   174→  // beforeunload prompt when there are unsaved changes.
+   175→  useEffect(() => {
+   176→    function onBeforeUnload(e: BeforeUnloadEvent) {
+   177→      if (dirty) {
+   178→        e.preventDefault();
+   179→        e.returnValue = "";
+   180→      }
+   181→    }
+   182→    window.addEventListener("beforeunload", onBeforeUnload);
+   183→    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+   184→  }, [dirty]);
+   185→
+   186→  // Hash-change guard: intercept navigation away when dirty.
+   187→  useEffect(() => {
+   188→    function onHashChange() {
+   189→      if (!dirty) return;
+   190→      const target = window.location.hash;
+   191→      const expected = `#/admin/pages/${slug}`;
+   192→      if (target === expected) return;
+   193→      window.history.pushState(null, "", expected);
+   194→      setPendingNav(target);
+   195→      setNavigateAwayOpen(true);
+   196→    }
+   197→    window.addEventListener("hashchange", onHashChange);
+   198→    return () => window.removeEventListener("hashchange", onHashChange);
+   199→  }, [dirty, slug]);
+   200→
+   201→  // Debounced save while editing.
+   202→  useEffect(() => {
+   203→    if (!snapshot || !dirty) return;
+   204→    setSaving(true);
+   205→    if (saveTimer.current) clearTimeout(saveTimer.current);
+   206→    saveTimer.current = setTimeout(() => {
+   207→      if (!snapshot) return;
+   208→      updatePage(slug, {
+   209→        title: snapshot.title,
+   210→        excerpt: snapshot.excerpt,
+   211→        bodyHtml: snapshot.bodyHtml,
+   212→        featuredImage: snapshot.featuredImage || undefined,
+   213→        authorId: snapshot.authorId || undefined,
+   214→        seo: snapshot.seo,
+   215→      });
+   216→      const stamp = new Date().toISOString();
+   217→      setLastSavedAt(stamp);
+   218→      setSaving(false);
+   219→      setDirty(false);
+   220→    }, SAVE_DEBOUNCE_MS);
+   221→    return () => {
+   222→      if (saveTimer.current) clearTimeout(saveTimer.current);
+   223→    };
+   224→  }, [snapshot, dirty, slug, updatePage]);
+   225→
+   226→  // ---------- Mutation helpers ----------
+   227→
+   228→  const update = useCallback(
+   229→    (patch: Partial<EditorSnapshot>, opts?: { skipHistory?: boolean }) => {
+   230→      setSnapshot((prev) => {
+   231→        if (!prev) return prev;
+   232→        const next = { ...prev, ...patch };
+   233→        if (!opts?.skipHistory) {
+   234→          setHistory((h) => {
+   235→            const truncated = h.slice(0, historyIndex + 1);
+   236→            truncated.push(next);
+   237→            const overflow = truncated.length - MAX_HISTORY;
+   238→            const trimmed =
+   239→              overflow > 0 ? truncated.slice(overflow) : truncated;
+   240→            return trimmed;
+   241→          });
+   242→          setHistoryIndex((i) =>
+   243→            Math.min(i + 1, MAX_HISTORY - 1)
+   244→          );
+   245→        }
+   246→        setDirty(true);
+   247→        return next;
+   248→      });
+   249→    },
+   250→    [historyIndex]
+   251→  );
+   252→
+   253→  const onTitleChange = useCallback(
+   254→    (title: string) => {
+   255→      update({ title });
+   256→      if (!slugEditedByUser) {
+   257→        const auto = slugify(title);
+   258→        update({ slug: auto }, { skipHistory: true });
+   259→      }
+   260→    },
+   261→    [update, slugEditedByUser]
+   262→  );
+   263→
+   264→  const onSlugChange = useCallback(
+   265→    (next: string) => {
+   266→      setSlugEditedByUser(true);
+   267→      update({ slug: next.toLowerCase() });
+   268→    },
+   269→    [update]
+   270→  );
+   271→
+   272→  const onBodyChange = useCallback(
+   273→    (markdown: string) => {
+   274→      update({ bodyHtml: markdown });
+   275→    },
+   276→    [update]
+   277→  );
+   278→
+   279→  // ---------- Undo / Redo ----------
+   280→
+   281→  const undo = useCallback(() => {
+   282→    if (historyIndex <= 0) return;
+   283→    const idx = historyIndex - 1;
+   284→    setHistoryIndex(idx);
+   285→    const prev = history[idx];
+   286→    setSnapshot(prev);
+   287→    setDirty(true);
+   288→    mdxRef.current?.setMarkdown(prev.bodyHtml);
+   289→  }, [history, historyIndex]);
+   290→
+   291→  const redo = useCallback(() => {
+   292→    if (historyIndex >= history.length - 1) return;
+   293→    const idx = historyIndex + 1;
+   294→    setHistoryIndex(idx);
+   295→    const next = history[idx];
+   296→    setSnapshot(next);
+   297→    setDirty(true);
+   298→    mdxRef.current?.setMarkdown(next.bodyHtml);
+   299→  }, [history, historyIndex]);
+   300→
+   301→  // ---------- Save / Publish / Unpublish / Preview ----------
+   302→
+   303→  function saveNow() {
+   304→    if (!snapshot) return;
+   305→    if (saveTimer.current) clearTimeout(saveTimer.current);
+   306→    updatePage(slug, {
+   307→      title: snapshot.title,
+   308→      excerpt: snapshot.excerpt,
+   309→      bodyHtml: snapshot.bodyHtml,
+   310→      featuredImage: snapshot.featuredImage || undefined,
+   311→      authorId: snapshot.authorId || undefined,
+   312→      seo: snapshot.seo,
+   313→    });
+   314→    const stamp = new Date().toISOString();
+   315→    setLastSavedAt(stamp);
+   316→    setSaving(false);
+   317→    setDirty(false);
+   318→    toast.success("Draft saved", {
+   319→      description: `Saved at ${new Date(stamp).toLocaleTimeString()}`,
+   320→    });
+   321→  }
+   322→
+   323→  function publish() {
+   324→    saveNow();
+   325→    publishPage(slug);
+   326→    toast.success("Page published", {
+   327→      description: `Live snapshot captured at ${new Date().toLocaleTimeString()}.`,
+   328→    });
+   329→    setPublishOpen(false);
+   330→    const updated = getPage(slug);
+   331→    if (updated) setSnapshot(toSnapshot(updated));
+   332→  }
+   333→
+   334→  function unpublish() {
+   335→    unpublishPage(slug);
+   336→    toast.success("Page unpublished", {
+   337→      description: "Status set to archived. Snapshot retained for rollback.",
+   338→    });
+   339→    setUnpublishOpen(false);
+   340→    const updated = getPage(slug);
+   341→    if (updated) setSnapshot(toSnapshot(updated));
+   342→  }
+   343→
+   344→  function preview() {
+   345→    const win = window.open(`/#/${slug}`, "_blank", "noopener,noreferrer");
+   346→    if (!win) {
+   347→      toast.info("Preview — pop-ups were blocked");
+   348→    } else {
+   349→      toast.info("Preview mode opening — note: this demo opens the published page.");
+   350→    }
+   351→  }
+   352→
+   353→  // ---------- 404 state ----------
+   354→
+   355→  if (!page || !snapshot) {
+   356→    return <PageNotFound slug={slug} />;
+   357→  }
+   358→
+   359→  // ---------- Validation ----------
+   360→
+   361→  const titleErr =
+   362→    !snapshot.title || snapshot.title.length < 3
+   363→      ? "Title must be at least 3 characters."
+   364→      : null;
+   365→  const slugErr =
+   366→    !snapshot.slug || !SLUG_REGEX.test(snapshot.slug)
+   367→      ? "Slug must be lowercase letters, numbers, and hyphens only."
+   368→      : null;
+   369→  const excerptWarn =
+   370→    !snapshot.excerpt || snapshot.excerpt.length < 8
+   371→      ? "Add a short excerpt for better listings and SEO."
+   372→      : null;
+   373→
+   374→  const publishedSnapshot = page.publishedSnapshot;
+   375→  const canUndo = historyIndex > 0;
+   376→  const canRedo = historyIndex < history.length - 1;
+   377→
+   378→  return (
+   379→    <div className="mx-auto max-w-7xl">
+   380→      <div className="mb-3 flex items-center justify-between gap-2">
+   381→        <Button asChild size="sm" variant="ghost" className="h-8">
+   382→          <Link to="/admin/pages">
+   383→            <ArrowLeft className="size-3.5" />
+   384→            Pages
+   385→          </Link>
+   386→        </Button>
+   387→        <div className="flex items-center gap-2">
+   388→          <Button
+   389→            size="sm"
+   390→            variant="outline"
+   391→            onClick={undo}
+   392→            disabled={!canUndo}
+   393→            aria-label="Undo"
+   394→          >
+   395→            <Undo2 className="size-3.5" />
+   396→            Undo
+   397→          </Button>
+   398→          <Button
+   399→            size="sm"
+   400→            variant="outline"
+   401→            onClick={redo}
+   402→            disabled={!canRedo}
+   403→            aria-label="Redo"
+   404→          >
+   405→            <Redo2 className="size-3.5" />
+   406→            Redo
+   407→          </Button>
+   408→        </div>
+   409→      </div>
+   410→
+   411→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+   412→        {/* Main editor */}
+   413→        <div className="space-y-4">
+   414→          <Card>
+   415→            <CardHeader>
+   416→              <CardTitle className="text-sm">Page basics</CardTitle>
+   417→              <CardDescription>
+   418→                Title, slug, excerpt, and featured image. Saved automatically
+   419→                while you type.
+   420→              </CardDescription>
+   421→            </CardHeader>
+   422→            <CardContent className="space-y-4">
+   423→              <div className="space-y-1.5">
+   424→                <Label htmlFor="page-title" className="text-xs">Title</Label>
+   425→                <Input
+   426→                  id="page-title"
+   427→                  value={snapshot.title}
+   428→                  onChange={(e) => onTitleChange(e.target.value)}
+   429→                  placeholder="Page title"
+   430→                  className="text-lg font-display"
+   431→                  aria-invalid={!!titleErr}
+   432→                />
+   433→                {titleErr ? (
+   434→                  <p className="text-[11px]" style={{ color: "var(--danger)" }} role="alert">
+   435→                    {titleErr}
+   436→                  </p>
+   437→                ) : null}
+   438→              </div>
+   439→
+   440→              <div className="space-y-1.5">
+   441→                <Label htmlFor="page-slug" className="text-xs">Slug</Label>
+   442→                <div className="flex items-center gap-1.5">
+   443→                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>/</span>
+   444→                  <Input
+   445→                    id="page-slug"
+   446→                    value={snapshot.slug}
+   447→                    onChange={(e) => onSlugChange(e.target.value)}
+   448→                    placeholder="page-slug"
+   449→                    className="font-mono"
+   450→                    aria-invalid={!!slugErr}
+   451→                    aria-describedby={slugErr ? "page-slug-err" : undefined}
+   452→                  />
+   453→                </div>
+   454→                {slugErr ? (
+   455→                  <p
+   456→                    id="page-slug-err"
+   457→                    className="text-[11px]"
+   458→                    style={{ color: "var(--danger)" }}
+   459→                    role="alert"
+   460→                  >
+   461→                    {slugErr}
+   462→                  </p>
+   463→                ) : (
+   464→                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+   465→                    Public URL: <span className="font-mono">/{snapshot.slug === "home" ? "" : snapshot.slug}</span>
+   466→                  </p>
+   467→                )}
+   468→              </div>
+   469→
+   470→              <div className="space-y-1.5">
+   471→                <Label htmlFor="page-excerpt" className="text-xs">Excerpt</Label>
+   472→                <Textarea
+   473→                  id="page-excerpt"
+   474→                  value={snapshot.excerpt}
+   475→                  onChange={(e) => update({ excerpt: e.target.value })}
+   476→                  placeholder="One or two sentences summarizing the page."
+   477→                  rows={3}
+   478→                />
+   479→                {excerptWarn ? (
+   480→                  <p
+   481→                    className="flex items-center gap-1 text-[11px]"
+   482→                    style={{ color: "var(--warning)" }}
+   483→                  >
+   484→                    <AlertTriangle className="size-3" />
+   485→                    {excerptWarn}
+   486→                  </p>
+   487→                ) : null}
+   488→              </div>
+   489→
+   490→              <div className="space-y-1.5">
+   491→                <Label className="text-xs">Featured image</Label>
+   492→                <div className="flex gap-2">
+   493→                  <div
+   494→                    className="flex size-16 items-center justify-center overflow-hidden rounded-md border"
+   495→                    style={{
+   496→                      borderColor: "var(--border-subtle)",
+   497→                      backgroundColor: "var(--surface-2)",
+   498→                    }}
+   499→                  >
+   500→                    {snapshot.featuredImage ? (
+   501→                      <img
+   502→                        src={resolveMediaUrl(snapshot.featuredImage, media)}
+   503→                        alt="Featured"
+   504→                        className="h-full w-full object-cover"
+   505→                      />
+   506→                    ) : (
+   507→                      <ImageIcon
+   508→                        className="size-4"
+   509→                        style={{ color: "var(--text-muted)" }}
+   510→                      />
+   511→                    )}
+   512→                  </div>
+   513→                  <div className="flex flex-1 flex-col gap-1">
+   514→                    <Button
+   515→                      type="button"
+   516→                      variant="outline"
+   517→                      size="sm"
+   518→                      className="h-8"
+   519→                      onClick={() => setMediaPickerOpen(true)}
+   520→                    >
+   521→                      {snapshot.featuredImage ? "Change image" : "Pick image"}
+   522→                    </Button>
+   523→                    {snapshot.featuredImage ? (
+   524→                      <Button
+   525→                        type="button"
+   526→                        variant="ghost"
+   527→                        size="sm"
+   528→                        className="h-8"
+   529→                        onClick={() => update({ featuredImage: "" })}
+   530→                      >
+   531→                        Clear
+   532→                      </Button>
+   533→                    ) : null}
+   534→                  </div>
+   535→                </div>
+   536→              </div>
+   537→            </CardContent>
+   538→          </Card>
+   539→
+   540→          <Card>
+   541→            <CardHeader>
+   542→              <CardTitle className="text-sm">Body</CardTitle>
+   543→              <CardDescription>
+   544→                Rich text via <code>@mdxeditor/editor</code>. Stored as markdown
+   545→                on the page&apos;s <code>bodyHtml</code> field (visible to the
+   546→                Phase 4 WYSIWYG builder).
+   547→              </CardDescription>
+   548→            </CardHeader>
+   549→            <CardContent>
+   550→              <div
+   551→                className="overflow-hidden rounded-md border"
+   552→                style={{
+   553→                  borderColor: "var(--border-subtle)",
+   554→                  backgroundColor: "var(--bg-navy)",
+   555→                }}
+   556→              >
+   557→                <MDXEditor
+   558→                  ref={mdxRef}
+   559→                  markdown={snapshot.bodyHtml || ""}
+   560→                  onChange={onBodyChange}
+   561→                  className="min-h-[420px]"
+   562→                  contentEditableClassName="prose prose-sm max-w-none px-4 py-3"
+   563→                  plugins={[
+   564→                    headingsPlugin({ allowedHeadingLevels: [2, 3] }),
+   565→                    listsPlugin(),
+   566→                    linkPlugin(),
+   567→                    linkDialogPlugin(),
+   568→                    quotePlugin(),
+   569→                    thematicBreakPlugin(),
+   570→                    markdownShortcutPlugin(),
+   571→                    codeBlockPlugin(),
+   572→                    imagePlugin(),
+   573→                    tablePlugin(),
+   574→                    toolbarPlugin({
+   575→                      toolbarContents: () => (
+   576→                        <>
+   577→                          <UndoRedo />
+   578→                          <Separator />
+   579→                          <BoldItalicUnderlineToggles />
+   580→                          <Separator />
+   581→                          <BlockTypeSelect />
+   582→                          <ListsToggle />
+   583→                          <Separator />
+   584→                          <CreateLink />
+   585→                          <InsertImage />
+   586→                          <InsertTable />
+   587→                          <InsertThematicBreak />
+   588→                          <CodeToggle />
+   589→                        </>
+   590→                      ),
+   591→                    }),
+   592→                  ]}
+   593→                />
+   594→              </div>
+   595→            </CardContent>
+   596→          </Card>
+   597→        </div>
+   598→
+   599→        {/* Right sidebar */}
+   600→        <aside className="space-y-4 lg:sticky lg:top-[72px] lg:self-start">
+   601→          <Card>
+   602→            <CardHeader>
+   603→              <div className="flex items-center justify-between">
+   604→                <CardTitle className="text-sm">Status</CardTitle>
+   605→                <StatusBadge status={snapshot.status} />
+   606→              </div>
+   607→              <CardDescription>
+   608→                {saving
+   609→                  ? "Saving…"
+   610→                  : dirty
+   611→                  ? "Unsaved changes"
+   612→                  : `Saved ${lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : "—"}`}
+   613→              </CardDescription>
+   614→            </CardHeader>
+   615→            <CardContent className="space-y-2.5">
+   616→              <div className="grid grid-cols-2 gap-2">
+   617→                <Button onClick={saveNow} variant="outline" size="sm" disabled={!dirty}>
+   618→                  <Save className="size-3.5" />
+   619→                  Save draft
+   620→                </Button>
+   621→                <Button onClick={() => setPublishOpen(true)} size="sm">
+   622→                  <Send className="size-3.5" />
+   623→                  Publish
+   624→                </Button>
+   625→                <Button
+   626→                  onClick={() => setUnpublishOpen(true)}
+   627→                  size="sm"
+   628→                  variant="ghost"
+   629→                  disabled={snapshot.status !== "published"}
+   630→                >
+   631→                  <EyeOff className="size-3.5" />
+   632→                  Unpublish
+   633→                </Button>
+   634→                <Button onClick={preview} size="sm" variant="ghost">
+   635→                  <Eye className="size-3.5" />
+   636→                  Preview
+   637→                </Button>
+   638→              </div>
+   639→
+   640→              {publishedSnapshot ? (
+   641→                <div
+   642→                  className="rounded-md border p-2 text-[11px]"
+   643→                  style={{
+   644→                    borderColor: "var(--border-subtle)",
+   645→                    backgroundColor: "var(--surface-2)",
+   646→                    color: "var(--text-secondary)",
+   647→                  }}
+   648→                >
+   649→                  <p className="flex items-center gap-1 font-medium" style={{ color: "var(--text-primary)" }}>
+   650→                    <CheckCircle2
+   651→                      className="size-3"
+   652→                      style={{ color: "var(--success)" }}
+   653→                    />
+   654→                    Published snapshot
+   655→                  </p>
+   656→                  <p className="mt-1">
+   657→                    Captured {new Date(publishedSnapshot.publishedAt).toLocaleString()}
+   658→                  </p>
+   659→                  <p className="mt-0.5">Title: {publishedSnapshot.title}</p>
+   660→                </div>
+   661→              ) : (
+   662→                <p
+   663→                  className="flex items-center gap-1 text-[11px]"
+   664→                  style={{ color: "var(--text-muted)" }}
+   665→                >
+   666→                  <Info className="size-3" />
+   667→                  No published snapshot yet. Click Publish to capture one.
+   668→                </p>
+   669→              )}
+   670→            </CardContent>
+   671→          </Card>
+   672→
+   673→          <Card>
+   674→            <CardHeader>
+   675→              <CardTitle className="text-sm">Publication settings</CardTitle>
+   676→            </CardHeader>
+   677→            <CardContent className="space-y-3">
+   678→              <div className="space-y-1.5">
+   679→                <Label htmlFor="author" className="text-xs">Author</Label>
+   680→                <Select
+   681→                  value={snapshot.authorId || "none"}
+   682→                  onValueChange={(v) =>
+   683→                    update({ authorId: v === "none" ? "" : v })
+   684→                  }
+   685→                >
+   686→                  <SelectTrigger id="author" className="h-9">
+   687→                    <SelectValue placeholder="Select author" />
+   688→                  </SelectTrigger>
+   689→                  <SelectContent>
+   690→                    <SelectItem value="none">No author</SelectItem>
+   691→                    {authors.map((a) => (
+   692→                      <SelectItem key={a.id} value={a.id}>
+   693→                        {a.name}
+   694→                      </SelectItem>
+   695→                    ))}
+   696→                  </SelectContent>
+   697→                </Select>
+   698→              </div>
+   699→
+   700→              <div className="space-y-1.5">
+   701→                <Label htmlFor="status" className="text-xs">Status</Label>
+   702→                <Select
+   703→                  value={snapshot.status}
+   704→                  onValueChange={(v: PageStatus) => update({ status: v })}
+   705→                >
+   706→                  <SelectTrigger id="status" className="h-9">
+   707→                    <SelectValue />
+   708→                  </SelectTrigger>
+   709→                  <SelectContent>
+   710→                    <SelectItem value="draft">Draft</SelectItem>
+   711→                    <SelectItem value="published">Published</SelectItem>
+   712→                    <SelectItem value="archived">Archived</SelectItem>
+   713→                  </SelectContent>
+   714→                </Select>
+   715→              </div>
+   716→
+   717→              <div className="space-y-1.5">
+   718→                <Label htmlFor="published-at" className="text-xs">
+   719→                  Published at
+   720→                </Label>
+   721→                <Input
+   722→                  id="published-at"
+   723→                  type="datetime-local"
+   724→                  value={toLocalInput(snapshot.publishedAt)}
+   725→                  onChange={(e) =>
+   726→                    update({
+   727→                      publishedAt: fromLocalInput(e.target.value),
+   728→                    })
+   729→                  }
+   730→                />
+   731→              </div>
+   732→            </CardContent>
+   733→          </Card>
+   734→
+   735→          <Card>
+   736→            <CardHeader>
+   737→              <CardTitle className="text-sm">SEO</CardTitle>
+   738→              <CardDescription>
+   739→                Title + meta description + OG image. Persisted with the page.
+   740→              </CardDescription>
+   741→            </CardHeader>
+   742→            <CardContent>
+   743→              <SeoEditor
+   744→                value={snapshot.seo}
+   745→                onChange={(seo) => update({ seo })}
+   746→                fallbackTitle={snapshot.title}
+   747→                fallbackDescription={snapshot.excerpt}
+   748→              />
+   749→            </CardContent>
+   750→          </Card>
+   751→        </aside>
+   752→      </div>
+   753→
+   754→      <MediaPickerDialog
+   755→        open={mediaPickerOpen}
+   756→        onOpenChange={setMediaPickerOpen}
+   757→        value={snapshot.featuredImage}
+   758→        onSelect={(m) => {
+   759→          if (m) update({ featuredImage: m.id });
+   760→        }}
+   761→        confirmLabel="Use this image"
+   762→      />
+   763→
+   764→      <ConfirmDialog
+   765→        open={publishOpen}
+   766→        onOpenChange={setPublishOpen}
+   767→        title="Publish page?"
+   768→        description="Captures a published snapshot from the current draft and sets the status to published. The page becomes visible on the public site."
+   769→        confirmLabel="Publish"
+   770→        onConfirm={publish}
+   771→      />
+   772→
+   773→      <ConfirmDialog
+   774→        open={unpublishOpen}
+   775→        onOpenChange={setUnpublishOpen}
+   776→        title="Unpublish this page?"
+   777→        description="Sets status to archived. The published snapshot is retained so you can re-publish later."
+   778→        confirmLabel="Unpublish"
+   779→        variant="destructive"
+   780→        onConfirm={unpublish}
+   781→      />
+   782→
+   783→      <ConfirmDialog
+   784→        open={navigateAwayOpen}
+   785→        onOpenChange={(open) => {
+   786→          setNavigateAwayOpen(open);
+   787→          if (!open) setPendingNav(null);
+   788→        }}
+   789→        title="Leave this page?"
+   790→        description="You have unsaved changes. Save them now or stay here."
+   791→        confirmLabel="Save & leave"
+   792→        cancelLabel="Stay"
+   793→        onConfirm={() => {
+   794→          saveNow();
+   795→          if (pendingNav) {
+   796→            const target = pendingNav.startsWith("#") ? pendingNav : `#${pendingNav}`;
+   797→            window.history.pushState(null, "", target);
+   798→            window.dispatchEvent(new HashChangeEvent("hashchange"));
+   799→          }
+   800→        }}
+   801→      />
+   802→    </div>
+   803→  );
+   804→}
+   805→
+   806→// ---------- 404 ----------
+   807→
+   808→function PageNotFound({ slug }: { slug: string }) {
+   809→  return (
+   810→    <div className="mx-auto max-w-2xl text-center">
+   811→      <div
+   812→        className="mx-auto flex size-12 items-center justify-center rounded-full"
+   813→        style={{ backgroundColor: "var(--surface-2)", color: "var(--text-muted)" }}
+   814→      >
+   815→        <AlertTriangle className="size-5" />
+   816→      </div>
+   817→      <h1
+   818→        className="mt-3 font-display text-xl font-semibold"
+   819→        style={{ color: "var(--text-primary)" }}
+   820→      >
+   821→        Page not found
+   822→      </h1>
+   823→      <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+   824→        No page with slug <code className="font-mono">{slug}</code> exists in the
+   825→        content store.
+   826→      </p>
+   827→      <Button asChild className="mt-4" size="sm">
+   828→        <Link to="/admin/pages">Back to pages</Link>
+   829→      </Button>
+   830→    </div>
+   831→  );
+   832→}
+   833→
+   834→// ---------- Local helpers ----------
+   835→
+   836→function slugify(s: string): string {
+   837→  return s
+   838→    .toLowerCase()
+   839→    .trim()
+   840→    .replace(/[^\w\s-]/g, "")
+   841→    .replace(/[\s_-]+/g, "-")
+   842→    .replace(/^-+|-+$/g, "");
+   843→}
+   844→
+   845→function toLocalInput(iso?: string): string {
+   846→  if (!iso) return "";
+   847→  const d = new Date(iso);
+   848→  if (isNaN(d.getTime())) return "";
+   849→  const pad = (n: number) => String(n).padStart(2, "0");
+   850→  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+   851→    d.getHours()
+   852→  )}:${pad(d.getMinutes())}`;
+   853→}
+   854→
+   855→function fromLocalInput(local: string): string | undefined {
+   856→  if (!local) return undefined;
+   857→  const d = new Date(local);
+   858→  if (isNaN(d.getTime())) return undefined;
+   859→  return d.toISOString();
+   860→}
+   861→
+   862→function resolveMediaUrl(
+   863→  ref: string,
+   864→  media: ReturnType<typeof useMedia>
+   865→): string {
+   866→  const found = media.find((m) => m.id === ref);
+   867→  return found?.url ?? ref;
+   868→}
+   869→

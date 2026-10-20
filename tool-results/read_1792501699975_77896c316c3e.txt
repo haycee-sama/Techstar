@@ -1,0 +1,1285 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState } from "react";
+     4→import { toast } from "sonner";
+     5→import {
+     6→  Card,
+     7→  CardContent,
+     8→  CardDescription,
+     9→  CardHeader,
+    10→  CardTitle,
+    11→} from "@/components/ui/card";
+    12→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    13→import { Button } from "@/components/ui/button";
+    14→import { Input } from "@/components/ui/input";
+    15→import { Textarea } from "@/components/ui/textarea";
+    16→import { Label } from "@/components/ui/label";
+    17→import {
+    18→  Select,
+    19→  SelectContent,
+    20→  SelectItem,
+    21→  SelectTrigger,
+    22→  SelectValue,
+    23→} from "@/components/ui/select";
+    24→import { Switch } from "@/components/ui/switch";
+    25→import { Checkbox } from "@/components/ui/checkbox";
+    26→import { Badge } from "@/components/ui/badge";
+    27→import {
+    28→  Palette,
+    29→  Phone,
+    30→  Link2,
+    31→  Search,
+    32→  PanelTop,
+    33→  Megaphone,
+    34→  Cookie,
+    35→  LayoutTemplate,
+    36→  Settings,
+    37→  RefreshCw,
+    38→  Database,
+    39→  Plus,
+    40→  Trash2,
+    41→  Save,
+    42→} from "lucide-react";
+    43→import { Link } from "@/lib/router";
+    44→import {
+    45→  useContentStore,
+    46→  useBrand,
+    47→  useGlobalSettings,
+    48→} from "@/lib/content-store";
+    49→import type { BrandSettings, GlobalSettings, SocialLink } from "@/lib/types";
+    50→import { DangerZoneCard } from "./DangerZoneCard";
+    51→import { ImportExportCard } from "./ImportExportCard";
+    52→
+    53→const ADMIN_APPEARANCE_KEY = "techstar:admin:preferences";
+    54→const ADMIN_THEME_KEY = "techstar:admin:theme";
+    55→
+    56→interface AdminAppearanceState {
+    57→  theme: "light" | "dark" | "system";
+    58→  sidebarDefaultCollapsed: boolean;
+    59→  denseTables: boolean;
+    60→}
+    61→
+    62→const DEFAULT_APPEARANCE: AdminAppearanceState = {
+    63→  theme: "light",
+    64→  sidebarDefaultCollapsed: false,
+    65→  denseTables: false,
+    66→};
+    67→
+    68→const TYPOGRAPHY_PRESETS = [
+    69→  { value: "Inter+Space Grotesk", label: "Inter + Space Grotesk" },
+    70→  { value: "Inter+JetBrains Mono", label: "Inter + JetBrains Mono" },
+    71→  { value: "system-ui+system-ui", label: "System Sans" },
+    72→];
+    73→
+    74→const ROBOTS_PRESETS = [
+    75→  { value: "index, follow", label: "index, follow" },
+    76→  { value: "noindex, follow", label: "noindex, follow" },
+    77→  { value: "index, nofollow", label: "index, nofollow" },
+    78→  { value: "noindex, nofollow", label: "noindex, nofollow" },
+    79→];
+    80→
+    81→/**
+    82→ * Phase 4 — Global settings panel. 11 tabs cover brand, contact,
+    83→ * social, SEO, header/footer variants, CTAs, cookie, default page
+    84→ * layouts, admin appearance, demo content reset, and data export /
+    85→ * import. Every save shows a sonner toast; every destructive action
+    86→ * shows a ConfirmDialog.
+    87→ */
+    88→export function SettingsPanel() {
+    89→  const [tab, setTab] = useState("brand");
+    90→
+    91→  return (
+    92→    <div className="mx-auto max-w-5xl">
+    93→      <div className="mb-6">
+    94→        <div
+    95→          className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide"
+    96→          style={{ color: "var(--text-muted)" }}
+    97→        >
+    98→          <Settings className="size-3.5" aria-hidden />
+    99→          Phase 4 · Global settings
+   100→        </div>
+   101→        <h1 className="font-display text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
+   102→          Settings
+   103→        </h1>
+   104→        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+   105→          Configure brand, contact info, SEO, layout variants, and the
+   106→          admin appearance. All saves are local — refresh-safe.
+   107→        </p>
+   108→      </div>
+   109→
+   110→      <Tabs value={tab} onValueChange={setTab} className="w-full">
+   111→        <TabsList
+   112→          className="flex h-auto w-full flex-wrap justify-start gap-1"
+   113→          style={{ height: "auto" }}
+   114→        >
+   115→          <TabsTrigger value="brand" className="gap-1.5"><Palette className="size-3.5" />Brand</TabsTrigger>
+   116→          <TabsTrigger value="contact" className="gap-1.5"><Phone className="size-3.5" />Contact</TabsTrigger>
+   117→          <TabsTrigger value="social" className="gap-1.5"><Link2 className="size-3.5" />Social</TabsTrigger>
+   118→          <TabsTrigger value="seo" className="gap-1.5"><Search className="size-3.5" />SEO</TabsTrigger>
+   119→          <TabsTrigger value="layout" className="gap-1.5"><PanelTop className="size-3.5" />Header/Footer</TabsTrigger>
+   120→          <TabsTrigger value="ctas" className="gap-1.5"><Megaphone className="size-3.5" />CTAs</TabsTrigger>
+   121→          <TabsTrigger value="cookie" className="gap-1.5"><Cookie className="size-3.5" />Cookie</TabsTrigger>
+   122→          <TabsTrigger value="pages" className="gap-1.5"><LayoutTemplate className="size-3.5" />Default layouts</TabsTrigger>
+   123→          <TabsTrigger value="admin" className="gap-1.5"><Settings className="size-3.5" />Admin</TabsTrigger>
+   124→          <TabsTrigger value="reset" className="gap-1.5"><RefreshCw className="size-3.5" />Reset</TabsTrigger>
+   125→          <TabsTrigger value="data" className="gap-1.5"><Database className="size-3.5" />Export/Import</TabsTrigger>
+   126→        </TabsList>
+   127→
+   128→        <TabsContent value="brand" className="mt-4">
+   129→          <BrandTab />
+   130→        </TabsContent>
+   131→        <TabsContent value="contact" className="mt-4">
+   132→          <ContactTab />
+   133→        </TabsContent>
+   134→        <TabsContent value="social" className="mt-4">
+   135→          <SocialTab />
+   136→        </TabsContent>
+   137→        <TabsContent value="seo" className="mt-4">
+   138→          <SeoTab />
+   139→        </TabsContent>
+   140→        <TabsContent value="layout" className="mt-4">
+   141→          <LayoutTab />
+   142→        </TabsContent>
+   143→        <TabsContent value="ctas" className="mt-4">
+   144→          <CtasTab />
+   145→        </TabsContent>
+   146→        <TabsContent value="cookie" className="mt-4">
+   147→          <CookieTab />
+   148→        </TabsContent>
+   149→        <TabsContent value="pages" className="mt-4">
+   150→          <DefaultLayoutsTab />
+   151→        </TabsContent>
+   152→        <TabsContent value="admin" className="mt-4">
+   153→          <AdminAppearanceTab />
+   154→        </TabsContent>
+   155→        <TabsContent value="reset" className="mt-4">
+   156→          <DangerZoneCard />
+   157→        </TabsContent>
+   158→        <TabsContent value="data" className="mt-4">
+   159→          <ImportExportCard />
+   160→        </TabsContent>
+   161→      </Tabs>
+   162→    </div>
+   163→  );
+   164→}
+   165→
+   166→// ============================================================
+   167→// BRAND TAB
+   168→// ============================================================
+   169→function BrandTab() {
+   170→  const brand = useBrand();
+   171→  const { updateBrand } = useContentStore();
+   172→  const [draft, setDraft] = useState<BrandSettings>(brand);
+   173→
+   174→  useEffect(() => setDraft(brand), [brand]);
+   175→
+   176→  // Apply CSS variables live as the user edits colors (preview only).
+   177→  // The public site picks the values up on save through the content
+   178→  // store, since `useBrand()` re-renders on state change.
+   179→  useEffect(() => {
+   180→    if (typeof document === "undefined") return;
+   181→    const root = document.documentElement;
+   182→    if (draft.colors.accent) root.style.setProperty("--accent", draft.colors.accent);
+   183→    if (draft.colors.accentCyan) root.style.setProperty("--accent-cyan", draft.colors.accentCyan);
+   184→    if (draft.colors.accentBright ?? draft.colors.accent) root.style.setProperty("--accent-bright", draft.colors.accentBright ?? draft.colors.accent);
+   185→    if (draft.colors.bgDeep) root.style.setProperty("--bg-deep", draft.colors.bgDeep);
+   186→    if (draft.colors.bgNavy) root.style.setProperty("--bg-navy", draft.colors.bgNavy);
+   187→    if (draft.colors.textPrimary) root.style.setProperty("--text-primary", draft.colors.textPrimary);
+   188→    if (draft.colors.textSecondary) root.style.setProperty("--text-secondary", draft.colors.textSecondary);
+   189→    if (draft.colors.textMuted) root.style.setProperty("--text-muted", draft.colors.textMuted);
+   190→  }, [draft.colors]);
+   191→
+   192→  function save() {
+   193→    updateBrand(draft);
+   194→    toast.success("Brand settings saved.");
+   195→  }
+   196→
+   197→  function setTypography(preset: string) {
+   198→    const [display, body] = preset.split("+");
+   199→    setDraft({ ...draft, typography: { display, body } });
+   200→  }
+   201→
+   202→  return (
+   203→    <Card>
+   204→      <CardHeader>
+   205→        <CardTitle className="font-display">Brand</CardTitle>
+   206→        <CardDescription>
+   207→          Company name, tagline, logo treatment, brand colors, and
+   208→          typography. Color changes apply live to this admin screen
+   209→          and to the public site on next visit.
+   210→        </CardDescription>
+   211→      </CardHeader>
+   212→      <CardContent className="space-y-4">
+   213→        <div className="grid gap-3 sm:grid-cols-2">
+   214→          <div className="space-y-1.5">
+   215→            <Label htmlFor="brand-name" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   216→              Company name
+   217→            </Label>
+   218→            <Input
+   219→              id="brand-name"
+   220→              value={draft.companyName}
+   221→              onChange={(e) => setDraft({ ...draft, companyName: e.target.value })}
+   222→            />
+   223→          </div>
+   224→          <div className="space-y-1.5">
+   225→            <Label htmlFor="brand-tagline" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   226→              Tagline
+   227→            </Label>
+   228→            <Input
+   229→              id="brand-tagline"
+   230→              value={draft.tagline}
+   231→              onChange={(e) => setDraft({ ...draft, tagline: e.target.value })}
+   232→            />
+   233→          </div>
+   234→        </div>
+   235→
+   236→        <div className="space-y-1.5">
+   237→          <Label htmlFor="brand-desc" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   238→            Short description
+   239→          </Label>
+   240→          <Textarea
+   241→            id="brand-desc"
+   242→            value={draft.shortDescription}
+   243→            onChange={(e) => setDraft({ ...draft, shortDescription: e.target.value })}
+   244→            rows={3}
+   245→          />
+   246→        </div>
+   247→
+   248→        <div className="space-y-1.5">
+   249→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   250→            Logo variant
+   251→          </Label>
+   252→          <Select
+   253→            value={draft.logoVariant === "default" ? "full" : draft.logoVariant}
+   254→            onValueChange={(v) => setDraft({ ...draft, logoVariant: v as BrandSettings["logoVariant"] })}
+   255→          >
+   256→            <SelectTrigger>
+   257→              <SelectValue />
+   258→            </SelectTrigger>
+   259→            <SelectContent>
+   260→              <SelectItem value="full">Full (mark + wordmark)</SelectItem>
+   261→              <SelectItem value="mark-only">Mark only</SelectItem>
+   262→              <SelectItem value="wordmark-only">Wordmark only</SelectItem>
+   263→            </SelectContent>
+   264→          </Select>
+   265→        </div>
+   266→
+   267→        <div className="space-y-2">
+   268→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   269→            Brand colors
+   270→          </Label>
+   271→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+   272→            <ColorField label="Background deep" value={draft.colors.bgDeep ?? "#0A0F1F"} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, bgDeep: v } })} />
+   273→            <ColorField label="Background navy" value={draft.colors.bgNavy ?? "#141923"} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, bgNavy: v } })} />
+   274→            <ColorField label="Primary" value={draft.colors.primary} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, primary: v } })} />
+   275→            <ColorField label="Accent" value={draft.colors.accent} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, accent: v } })} />
+   276→            <ColorField label="Accent bright" value={draft.colors.accentBright ?? draft.colors.accent} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, accentBright: v } })} />
+   277→            <ColorField label="Accent cyan" value={draft.colors.accentCyan} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, accentCyan: v } })} />
+   278→            <ColorField label="Text primary" value={draft.colors.textPrimary ?? "#F4F5F7"} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, textPrimary: v } })} />
+   279→            <ColorField label="Text secondary" value={draft.colors.textSecondary ?? "#A1A6B0"} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, textSecondary: v } })} />
+   280→            <ColorField label="Text muted" value={draft.colors.textMuted ?? "#6B7280"} onChange={(v) => setDraft({ ...draft, colors: { ...draft.colors, textMuted: v } })} />
+   281→          </div>
+   282→          <BrandColorPreview colors={draft.colors} />
+   283→        </div>
+   284→
+   285→        <div className="space-y-1.5">
+   286→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   287→            Typography
+   288→          </Label>
+   289→          <Select
+   290→            value={`${draft.typography.display}+${draft.typography.body}`}
+   291→            onValueChange={setTypography}
+   292→          >
+   293→            <SelectTrigger>
+   294→              <SelectValue />
+   295→            </SelectTrigger>
+   296→            <SelectContent>
+   297→              {TYPOGRAPHY_PRESETS.map((p) => (
+   298→                <SelectItem key={p.value} value={p.value}>
+   299→                  {p.label}
+   300→                </SelectItem>
+   301→              ))}
+   302→            </SelectContent>
+   303→          </Select>
+   304→        </div>
+   305→
+   306→        <SaveButton onClick={save} />
+   307→      </CardContent>
+   308→    </Card>
+   309→  );
+   310→}
+   311→
+   312→function ColorField({
+   313→  label,
+   314→  value,
+   315→  onChange,
+   316→}: {
+   317→  label: string;
+   318→  value: string;
+   319→  onChange: (v: string) => void;
+   320→}) {
+   321→  return (
+   322→    <div className="space-y-1">
+   323→      <label className="flex items-center justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>
+   324→        <span className="uppercase tracking-wide">{label}</span>
+   325→        <span className="font-mono">{value}</span>
+   326→      </label>
+   327→      <div className="flex items-center gap-2">
+   328→        <input
+   329→          type="color"
+   330→          value={value}
+   331→          onChange={(e) => onChange(e.target.value)}
+   332→          className="h-8 w-10 cursor-pointer rounded border"
+   333→          style={{ borderColor: "var(--border-subtle)" }}
+   334→          aria-label={`${label} color picker`}
+   335→        />
+   336→        <Input
+   337→          value={value}
+   338→          onChange={(e) => onChange(e.target.value)}
+   339→          className="h-8 font-mono text-xs"
+   340→          aria-label={`${label} hex value`}
+   341→        />
+   342→      </div>
+   343→    </div>
+   344→  );
+   345→}
+   346→
+   347→/**
+   348→ * Live preview swatch: shows what the selected colors look like
+   349→ * when composed together (navy background + accent button + text).
+   350→ * Updates as the user edits color fields in real time.
+   351→ */
+   352→function BrandColorPreview({
+   353→  colors,
+   354→}: {
+   355→  colors: BrandSettings["colors"];
+   356→}) {
+   357→  const bg = colors.bgNavy ?? "#141923";
+   358→  const deep = colors.bgDeep ?? "#0A0F1F";
+   359→  const accent = colors.accent ?? "#3B82F6";
+   360→  const accentBright = colors.accentBright ?? accent;
+   361→  const accentCyan = colors.accentCyan ?? "#22D3EE";
+   362→  const textPrimary = colors.textPrimary ?? "#F4F5F7";
+   363→  const textSecondary = colors.textSecondary ?? "#A1A6B0";
+   364→  const textMuted = colors.textMuted ?? "#6B7280";
+   365→  return (
+   366→    <div
+   367→      className="overflow-hidden rounded-md border"
+   368→      style={{ borderColor: "var(--border-subtle)" }}
+   369→    >
+   370→      <div
+   371→        className="px-3 py-3"
+   372→        style={{
+   373→          background: `linear-gradient(135deg, ${deep} 0%, ${bg} 60%)`,
+   374→          color: textPrimary,
+   375→        }}
+   376→      >
+   377→        <p
+   378→          className="text-[10px] uppercase tracking-[0.18em]"
+   379→          style={{ color: accentCyan }}
+   380→        >
+   381→          Live preview
+   382→        </p>
+   383→        <h3
+   384→          className="mt-1 font-display text-base font-semibold tracking-tight"
+   385→          style={{ color: textPrimary }}
+   386→        >
+   387→          Techstar brand colors
+   388→        </h3>
+   389→        <p className="mt-0.5 text-[11px]" style={{ color: textSecondary }}>
+   390→          A short editorial sentence in the secondary text color.
+   391→        </p>
+   392→        <p className="mt-1 text-[10px]" style={{ color: textMuted }}>
+   393→          Muted caption text for fine print.
+   394→        </p>
+   395→        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+   396→          <span
+   397→            className="inline-flex h-6 items-center rounded px-2 text-[10px] font-medium"
+   398→            style={{ backgroundColor: accent, color: "#FFFFFF" }}
+   399→          >
+   400→            Primary button
+   401→          </span>
+   402→          <span
+   403→            className="inline-flex h-6 items-center rounded px-2 text-[10px] font-medium"
+   404→            style={{ backgroundColor: accentBright, color: "#FFFFFF" }}
+   405→          >
+   406→            Bright button
+   407→          </span>
+   408→          <span
+   409→            className="inline-flex h-6 items-center rounded border px-2 text-[10px] font-medium"
+   410→            style={{ borderColor: accentCyan, color: accentCyan }}
+   411→          >
+   412→            Outlined
+   413→          </span>
+   414→        </div>
+   415→      </div>
+   416→      <div
+   417→        className="flex flex-wrap items-center gap-1 px-3 py-2 text-[10px]"
+   418→        style={{ backgroundColor: "var(--surface-1)", color: "var(--text-muted)" }}
+   419→      >
+   420→        Swatches:
+   421→        {[
+   422→          ["Bg deep", deep],
+   423→          ["Bg navy", bg],
+   424→          ["Primary", colors.primary],
+   425→          ["Accent", accent],
+   426→          ["Accent bright", accentBright],
+   427→          ["Accent cyan", accentCyan],
+   428→          ["Text", textPrimary],
+   429→          ["Secondary", textSecondary],
+   430→          ["Muted", textMuted],
+   431→        ].map(([label, hex]) => (
+   432→          <span
+   433→            key={label}
+   434→            className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5"
+   435→            style={{ borderColor: "var(--border-subtle)" }}
+   436→            title={`${label}: ${hex}`}
+   437→          >
+   438→            <span
+   439→              className="size-3 rounded-sm"
+   440→              aria-hidden
+   441→              style={{ backgroundColor: hex, outline: "1px solid rgba(0,0,0,0.15)" }}
+   442→            />
+   443→            <span className="font-mono">{hex}</span>
+   444→          </span>
+   445→        ))}
+   446→      </div>
+   447→    </div>
+   448→  );
+   449→}
+   450→
+   451→// ============================================================
+   452→// CONTACT TAB
+   453→// ============================================================
+   454→function ContactTab() {
+   455→  const gs = useGlobalSettings();
+   456→  const { updateGlobalSettings } = useContentStore();
+   457→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+   458→
+   459→  useEffect(() => setDraft(gs), [gs]);
+   460→
+   461→  function save() {
+   462→    updateGlobalSettings(draft);
+   463→    toast.success("Contact settings saved.");
+   464→  }
+   465→
+   466→  function updateHours(i: number, next: Partial<{ day: string; hours: string }>) {
+   467→    const hours = draft.contact.hours.slice();
+   468→    hours[i] = { ...hours[i], ...next };
+   469→    setDraft({ ...draft, contact: { ...draft.contact, hours } });
+   470→  }
+   471→
+   472→  function addHour() {
+   473→    setDraft({
+   474→      ...draft,
+   475→      contact: { ...draft.contact, hours: [...draft.contact.hours, { day: "", hours: "" }] },
+   476→    });
+   477→  }
+   478→
+   479→  function removeHour(i: number) {
+   480→    setDraft({
+   481→      ...draft,
+   482→      contact: {
+   483→        ...draft.contact,
+   484→        hours: draft.contact.hours.filter((_, idx) => idx !== i),
+   485→      },
+   486→    });
+   487→  }
+   488→
+   489→  return (
+   490→    <Card>
+   491→      <CardHeader>
+   492→        <CardTitle className="font-display">Contact</CardTitle>
+   493→        <CardDescription>
+   494→          Email, phone, sample address, business hours, and optional map
+   495→          embed URL. The address is clearly labeled sample — replace before
+   496→          launch.
+   497→        </CardDescription>
+   498→      </CardHeader>
+   499→      <CardContent className="space-y-4">
+   500→        <div className="grid gap-3 sm:grid-cols-2">
+   501→          <div className="space-y-1.5">
+   502→            <Label htmlFor="contact-email" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   503→              Email
+   504→            </Label>
+   505→            <Input
+   506→              id="contact-email"
+   507→              type="email"
+   508→              value={draft.contact.email}
+   509→              onChange={(e) => setDraft({ ...draft, contact: { ...draft.contact, email: e.target.value } })}
+   510→            />
+   511→          </div>
+   512→          <div className="space-y-1.5">
+   513→            <Label htmlFor="contact-phone" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   514→              Phone
+   515→            </Label>
+   516→            <Input
+   517→              id="contact-phone"
+   518→              type="tel"
+   519→              value={draft.contact.phone}
+   520→              onChange={(e) => setDraft({ ...draft, contact: { ...draft.contact, phone: e.target.value } })}
+   521→            />
+   522→          </div>
+   523→        </div>
+   524→
+   525→        <div className="space-y-1.5">
+   526→          <Label htmlFor="contact-address" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   527→            Sample address
+   528→          </Label>
+   529→          <Input
+   530→            id="contact-address"
+   531→            value={draft.contact.addressSample}
+   532→            onChange={(e) => setDraft({ ...draft, contact: { ...draft.contact, addressSample: e.target.value } })}
+   533→          />
+   534→          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+   535→            Sample — replace before launch.
+   536→          </p>
+   537→        </div>
+   538→
+   539→        <div className="space-y-1.5">
+   540→          <Label htmlFor="contact-map" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   541→            Map embed URL (optional)
+   542→          </Label>
+   543→          <Input
+   544→            id="contact-map"
+   545→            value={draft.contact.mapEmbedUrl ?? ""}
+   546→            onChange={(e) => setDraft({ ...draft, contact: { ...draft.contact, mapEmbedUrl: e.target.value } })}
+   547→            placeholder="https://www.google.com/maps/embed?…"
+   548→          />
+   549→        </div>
+   550→
+   551→        <div className="space-y-2">
+   552→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   553→            Business hours
+   554→          </Label>
+   555→          <div className="space-y-1.5">
+   556→            {draft.contact.hours.map((h, i) => (
+   557→              <div key={i} className="flex items-center gap-2">
+   558→                <Input
+   559→                  value={h.day}
+   560→                  onChange={(e) => updateHours(i, { day: e.target.value })}
+   561→                  className="h-8 flex-1 text-xs"
+   562→                  placeholder="Mon – Fri"
+   563→                />
+   564→                <Input
+   565→                  value={h.hours}
+   566→                  onChange={(e) => updateHours(i, { hours: e.target.value })}
+   567→                  className="h-8 flex-1 text-xs"
+   568→                  placeholder="07:00 – 19:00"
+   569→                />
+   570→                <Button
+   571→                  variant="ghost"
+   572→                  size="icon"
+   573→                  className="size-8 shrink-0 text-[var(--danger,#ef4444)]"
+   574→                  onClick={() => removeHour(i)}
+   575→                  aria-label={`Remove hours row ${i + 1}`}
+   576→                >
+   577→                  <Trash2 className="size-3.5" />
+   578→                </Button>
+   579→              </div>
+   580→            ))}
+   581→          </div>
+   582→          <Button variant="outline" size="sm" onClick={addHour} className="gap-1.5">
+   583→            <Plus className="size-3.5" />
+   584→            Add row
+   585→          </Button>
+   586→        </div>
+   587→
+   588→        <SaveButton onClick={save} />
+   589→      </CardContent>
+   590→    </Card>
+   591→  );
+   592→}
+   593→
+   594→// ============================================================
+   595→// SOCIAL TAB
+   596→// ============================================================
+   597→function SocialTab() {
+   598→  const gs = useGlobalSettings();
+   599→  // Render a compact inline editor + a deep-link to the dedicated table.
+   600→  return (
+   601→    <Card>
+   602→      <CardHeader>
+   603→        <CardTitle className="font-display">Social links</CardTitle>
+   604→        <CardDescription>
+   605→          A full CRUD table lives at the Social admin route. Use it to
+   606→          add / remove / reorder social links — changes here propagate to
+   607→          the footer and author bios.
+   608→        </CardDescription>
+   609→      </CardHeader>
+   610→      <CardContent className="space-y-3">
+   611→        <ul className="space-y-1.5">
+   612→          {gs.socials.map((s) => (
+   613→            <li
+   614→              key={s.id}
+   615→              className="flex items-center justify-between rounded-md border px-3 py-2 text-xs"
+   616→              style={{
+   617→                borderColor: "var(--border-subtle)",
+   618→                backgroundColor: "var(--surface-2)",
+   619→              }}
+   620→            >
+   621→              <span className="font-mono uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   622→                {s.platform}
+   623→              </span>
+   624→              <span className="truncate" style={{ color: "var(--text-secondary)" }}>
+   625→                {s.handle ?? s.url}
+   626→              </span>
+   627→            </li>
+   628→          ))}
+   629→          {gs.socials.length === 0 ? (
+   630→            <li className="rounded-md border border-dashed p-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+   631→              No social links yet.
+   632→            </li>
+   633→          ) : null}
+   634→        </ul>
+   635→        <Button asChild variant="outline" size="sm">
+   636→          <Link to="/admin/social">Open social table</Link>
+   637→        </Button>
+   638→      </CardContent>
+   639→    </Card>
+   640→  );
+   641→}
+   642→
+   643→// ============================================================
+   644→// SEO TAB
+   645→// ============================================================
+   646→function SeoTab() {
+   647→  const gs = useGlobalSettings();
+   648→  const { updateGlobalSettings } = useContentStore();
+   649→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+   650→
+   651→  useEffect(() => setDraft(gs), [gs]);
+   652→
+   653→  function save() {
+   654→    updateGlobalSettings(draft);
+   655→    toast.success("Default SEO settings saved.");
+   656→  }
+   657→
+   658→  return (
+   659→    <Card>
+   660→      <CardHeader>
+   661→        <CardTitle className="font-display">Default SEO</CardTitle>
+   662→        <CardDescription>
+   663→          Applied to every page that doesn&apos;t override its own SEO
+   664→          metadata. Page-level overrides still take precedence.
+   665→        </CardDescription>
+   666→      </CardHeader>
+   667→      <CardContent className="space-y-4">
+   668→        <div className="space-y-1.5">
+   669→          <Label htmlFor="seo-title" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   670→            Default title
+   671→          </Label>
+   672→          <Input
+   673→            id="seo-title"
+   674→            value={draft.defaultSeo.title ?? ""}
+   675→            onChange={(e) => setDraft({ ...draft, defaultSeo: { ...draft.defaultSeo, title: e.target.value } })}
+   676→          />
+   677→        </div>
+   678→        <div className="space-y-1.5">
+   679→          <Label htmlFor="seo-desc" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   680→            Default description
+   681→          </Label>
+   682→          <Textarea
+   683→            id="seo-desc"
+   684→            value={draft.defaultSeo.description ?? ""}
+   685→            onChange={(e) => setDraft({ ...draft, defaultSeo: { ...draft.defaultSeo, description: e.target.value } })}
+   686→            rows={3}
+   687→          />
+   688→        </div>
+   689→        <div className="grid gap-3 sm:grid-cols-2">
+   690→          <div className="space-y-1.5">
+   691→            <Label htmlFor="seo-og" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   692→              Default OG image URL
+   693→            </Label>
+   694→            <Input
+   695→              id="seo-og"
+   696→              value={draft.defaultSeo.ogImage ?? ""}
+   697→              onChange={(e) => setDraft({ ...draft, defaultSeo: { ...draft.defaultSeo, ogImage: e.target.value } })}
+   698→            />
+   699→          </div>
+   700→          <div className="space-y-1.5">
+   701→            <Label htmlFor="seo-canonical" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   702→              Canonical base URL
+   703→            </Label>
+   704→            <Input
+   705→              id="seo-canonical"
+   706→              value={draft.canonicalBaseUrl ?? ""}
+   707→              onChange={(e) => setDraft({ ...draft, canonicalBaseUrl: e.target.value })}
+   708→              placeholder="https://techstar.example"
+   709→            />
+   710→          </div>
+   711→        </div>
+   712→        <div className="space-y-1.5">
+   713→          <Label htmlFor="seo-robots" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   714→            Robots directive
+   715→          </Label>
+   716→          <Select
+   717→            value={draft.robotsDirective ?? "index, follow"}
+   718→            onValueChange={(v) => setDraft({ ...draft, robotsDirective: v })}
+   719→          >
+   720→            <SelectTrigger id="seo-robots"><SelectValue /></SelectTrigger>
+   721→            <SelectContent>
+   722→              {ROBOTS_PRESETS.map((p) => (
+   723→                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+   724→              ))}
+   725→            </SelectContent>
+   726→          </Select>
+   727→        </div>
+   728→        <SaveButton onClick={save} />
+   729→      </CardContent>
+   730→    </Card>
+   731→  );
+   732→}
+   733→
+   734→// ============================================================
+   735→// LAYOUT TAB
+   736→// ============================================================
+   737→function LayoutTab() {
+   738→  const gs = useGlobalSettings();
+   739→  const { updateGlobalSettings } = useContentStore();
+   740→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+   741→
+   742→  useEffect(() => setDraft(gs), [gs]);
+   743→
+   744→  function save() {
+   745→    updateGlobalSettings(draft);
+   746→    toast.success("Header/footer variants saved.");
+   747→  }
+   748→
+   749→  return (
+   750→    <Card>
+   751→      <CardHeader>
+   752→        <CardTitle className="font-display">Header / Footer variants</CardTitle>
+   753→        <CardDescription>
+   754→          Choose global chrome variants. Some themes may not implement
+   755→          every variant — the site falls back to the default when an
+   756→          unknown variant is requested.
+   757→        </CardDescription>
+   758→      </CardHeader>
+   759→      <CardContent className="space-y-4">
+   760→        <div className="grid gap-3 sm:grid-cols-2">
+   761→          <div className="space-y-1.5">
+   762→            <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   763→              Header variant
+   764→            </Label>
+   765→            <Select
+   766→              value={draft.headerVariant}
+   767→              onValueChange={(v) => setDraft({ ...draft, headerVariant: v as GlobalSettings["headerVariant"] })}
+   768→            >
+   769→              <SelectTrigger><SelectValue /></SelectTrigger>
+   770→              <SelectContent>
+   771→                <SelectItem value="default">Default</SelectItem>
+   772→                <SelectItem value="full">Full (with mega-menu + announcement)</SelectItem>
+   773→                <SelectItem value="minimal">Minimal (logo + nav + CTA)</SelectItem>
+   774→                <SelectItem value="with-announcement">With announcement strip</SelectItem>
+   775→              </SelectContent>
+   776→            </Select>
+   777→          </div>
+   778→          <div className="space-y-1.5">
+   779→            <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   780→              Footer variant
+   781→            </Label>
+   782→            <Select
+   783→              value={draft.footerVariant}
+   784→              onValueChange={(v) => setDraft({ ...draft, footerVariant: v as GlobalSettings["footerVariant"] })}
+   785→            >
+   786→              <SelectTrigger><SelectValue /></SelectTrigger>
+   787→              <SelectContent>
+   788→                <SelectItem value="default">Default</SelectItem>
+   789→                <SelectItem value="full">Full (multi-column + newsletter)</SelectItem>
+   790→                <SelectItem value="minimal">Minimal (single-row)</SelectItem>
+   791→              </SelectContent>
+   792→            </Select>
+   793→          </div>
+   794→        </div>
+   795→        <SaveButton onClick={save} />
+   796→      </CardContent>
+   797→    </Card>
+   798→  );
+   799→}
+   800→
+   801→// ============================================================
+   802→// CTAS TAB
+   803→// ============================================================
+   804→function CtasTab() {
+   805→  const gs = useGlobalSettings();
+   806→  const { updateGlobalSettings } = useContentStore();
+   807→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+   808→
+   809→  useEffect(() => setDraft(gs), [gs]);
+   810→
+   811→  function save() {
+   812→    updateGlobalSettings(draft);
+   813→    toast.success("CTA settings saved.");
+   814→  }
+   815→
+   816→  return (
+   817→    <Card>
+   818→      <CardHeader>
+   819→        <CardTitle className="font-display">CTAs</CardTitle>
+   820→        <CardDescription>
+   821→          Default call-to-action labels and destinations for the header,
+   822→          footer, floating button, and contact section.
+   823→        </CardDescription>
+   824→      </CardHeader>
+   825→      <CardContent className="space-y-4">
+   826→        <CtaEditor
+   827→          title="Primary CTA (header)"
+   828→          cta={draft.ctas.primary}
+   829→          onChange={(c) => setDraft({ ...draft, ctas: { ...draft.ctas, primary: c } })}
+   830→        />
+   831→        <CtaEditor
+   832→          title="Secondary CTA"
+   833→          cta={draft.ctas.secondary ?? { label: "", href: "" }}
+   834→          onChange={(c) => setDraft({ ...draft, ctas: { ...draft.ctas, secondary: c } })}
+   835→        />
+   836→        <CtaEditor
+   837→          title="Floating CTA (right-edge)"
+   838→          cta={draft.ctas.floating ?? { label: "", href: "" }}
+   839→          onChange={(c) => setDraft({ ...draft, ctas: { ...draft.ctas, floating: c } })}
+   840→        />
+   841→        <CtaEditor
+   842→          title="Contact-section CTA"
+   843→          cta={draft.ctas.contact ?? { label: "", href: "" }}
+   844→          onChange={(c) => setDraft({ ...draft, ctas: { ...draft.ctas, contact: c } })}
+   845→        />
+   846→        <SaveButton onClick={save} />
+   847→      </CardContent>
+   848→    </Card>
+   849→  );
+   850→}
+   851→
+   852→function CtaEditor({
+   853→  title,
+   854→  cta,
+   855→  onChange,
+   856→}: {
+   857→  title: string;
+   858→  cta: { label: string; href: string; variant?: string };
+   859→  onChange: (c: { label: string; href: string; variant?: string }) => void;
+   860→}) {
+   861→  return (
+   862→    <div className="rounded-md border p-3" style={{ borderColor: "var(--border-subtle)" }}>
+   863→      <h4 className="mb-2 text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+   864→        {title}
+   865→      </h4>
+   866→      <div className="grid gap-2 sm:grid-cols-2">
+   867→        <div className="space-y-1">
+   868→          <Label className="text-[10px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   869→            Label
+   870→          </Label>
+   871→          <Input
+   872→            value={cta.label}
+   873→            onChange={(e) => onChange({ ...cta, label: e.target.value })}
+   874→            className="h-8 text-xs"
+   875→          />
+   876→        </div>
+   877→        <div className="space-y-1">
+   878→          <Label className="text-[10px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   879→            Destination (href)
+   880→          </Label>
+   881→          <Input
+   882→            value={cta.href}
+   883→            onChange={(e) => onChange({ ...cta, href: e.target.value })}
+   884→            className="h-8 text-xs"
+   885→            placeholder="#/contact"
+   886→          />
+   887→        </div>
+   888→      </div>
+   889→    </div>
+   890→  );
+   891→}
+   892→
+   893→// ============================================================
+   894→// COOKIE TAB
+   895→// ============================================================
+   896→function CookieTab() {
+   897→  const gs = useGlobalSettings();
+   898→  const { updateGlobalSettings } = useContentStore();
+   899→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+   900→
+   901→  useEffect(() => setDraft(gs), [gs]);
+   902→
+   903→  function save() {
+   904→    updateGlobalSettings(draft);
+   905→    toast.success("Cookie preferences saved.");
+   906→  }
+   907→
+   908→  return (
+   909→    <Card>
+   910→      <CardHeader>
+   911→        <CardTitle className="font-display">Cookie preferences</CardTitle>
+   912→        <CardDescription>
+   913→          Banner copy, default consent categories, and consent expiry.
+   914→          The dedicated cookie policy table is at{" "}
+   915→          <Link to="/admin/cookie" className="underline">#/admin/cookie</Link>.
+   916→        </CardDescription>
+   917→      </CardHeader>
+   918→      <CardContent className="space-y-4">
+   919→        <div className="space-y-1.5">
+   920→          <Label htmlFor="cookie-text" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   921→            Cookie banner text
+   922→          </Label>
+   923→          <Textarea
+   924→            id="cookie-text"
+   925→            value={draft.cookieText}
+   926→            onChange={(e) => setDraft({ ...draft, cookieText: e.target.value })}
+   927→            rows={3}
+   928→          />
+   929→        </div>
+   930→        <div className="space-y-1.5">
+   931→          <Label htmlFor="cookie-expiry" className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   932→            Consent expiry (days)
+   933→          </Label>
+   934→          <Input
+   935→            id="cookie-expiry"
+   936→            type="number"
+   937→            min={1}
+   938→            value={draft.cookieConsentExpiryDays ?? 180}
+   939→            onChange={(e) => setDraft({ ...draft, cookieConsentExpiryDays: Number(e.target.value) })}
+   940→            className="h-8 w-32"
+   941→          />
+   942→        </div>
+   943→        <div className="space-y-2">
+   944→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   945→            Default consent preferences
+   946→          </Label>
+   947→          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+   948→            Categories pre-checked when the cookie banner first appears.
+   949→            <strong className="mx-1">Necessary</strong>
+   950→            is always on and cannot be opted out of.
+   951→          </p>
+   952→          <div
+   953→            className="rounded-md border p-3 space-y-2"
+   954→            style={{
+   955→              borderColor: "var(--border-subtle)",
+   956→              backgroundColor: "var(--surface-2)",
+   957→            }}
+   958→          >
+   959→            <CookiePrefRow
+   960→              label="Necessary"
+   961→              description="Required for the site to function. Always on."
+   962→              checked
+   963→              disabled
+   964→              onChange={() => undefined}
+   965→            />
+   966→            <CookiePrefRow
+   967→              label="Analytics"
+   968→              description="Traffic analytics (off by default)."
+   969→              checked={
+   970→                (draft.defaultCookiePrefs?.analyticsDefaultOff ?? true) === false
+   971→              }
+   972→              onChange={(c) =>
+   973→                setDraft({
+   974→                  ...draft,
+   975→                  defaultCookiePrefs: {
+   976→                    analyticsDefaultOff: !c,
+   977→                    marketingDefaultOff: draft.defaultCookiePrefs?.marketingDefaultOff ?? true,
+   978→                    functionalDefaultOn: draft.defaultCookiePrefs?.functionalDefaultOn ?? true,
+   979→                  },
+   980→                })
+   981→              }
+   982→            />
+   983→            <CookiePrefRow
+   984→              label="Marketing"
+   985→              description="Personalised ad tracking (off by default)."
+   986→              checked={
+   987→                (draft.defaultCookiePrefs?.marketingDefaultOff ?? true) === false
+   988→              }
+   989→              onChange={(c) =>
+   990→                setDraft({
+   991→                  ...draft,
+   992→                  defaultCookiePrefs: {
+   993→                    analyticsDefaultOff: draft.defaultCookiePrefs?.analyticsDefaultOff ?? true,
+   994→                    marketingDefaultOff: !c,
+   995→                    functionalDefaultOn: draft.defaultCookiePrefs?.functionalDefaultOn ?? true,
+   996→                  },
+   997→                })
+   998→              }
+   999→            />
+  1000→            <CookiePrefRow
+  1001→              label="Functional"
+  1002→              description="Extras like theme toggle and saved forms (on by default)."
+  1003→              checked={draft.defaultCookiePrefs?.functionalDefaultOn ?? true}
+  1004→              onChange={(c) =>
+  1005→                setDraft({
+  1006→                  ...draft,
+  1007→                  defaultCookiePrefs: {
+  1008→                    analyticsDefaultOff: draft.defaultCookiePrefs?.analyticsDefaultOff ?? true,
+  1009→                    marketingDefaultOff: draft.defaultCookiePrefs?.marketingDefaultOff ?? true,
+  1010→                    functionalDefaultOn: c,
+  1011→                  },
+  1012→                })
+  1013→              }
+  1014→            />
+  1015→          </div>
+  1016→        </div>
+  1017→        <div className="flex items-center gap-2">
+  1018→          <Button asChild variant="outline" size="sm">
+  1019→            <Link to="/admin/cookie">Open cookie settings</Link>
+  1020→          </Button>
+  1021→          <SaveButton onClick={save} />
+  1022→        </div>
+  1023→      </CardContent>
+  1024→    </Card>
+  1025→  );
+  1026→}
+  1027→
+  1028→function CookiePrefRow({
+  1029→  label,
+  1030→  description,
+  1031→  checked,
+  1032→  disabled,
+  1033→  onChange,
+  1034→}: {
+  1035→  label: string;
+  1036→  description: string;
+  1037→  checked: boolean;
+  1038→  disabled?: boolean;
+  1039→  onChange: (checked: boolean) => void;
+  1040→}) {
+  1041→  return (
+  1042→    <label
+  1043→      htmlFor={`cookie-pref-${label.toLowerCase()}`}
+  1044→      className="flex items-center gap-3 text-xs"
+  1045→      style={{ color: "var(--text-primary)" }}
+  1046→    >
+  1047→      <Checkbox
+  1048→        id={`cookie-pref-${label.toLowerCase()}`}
+  1049→        checked={checked}
+  1050→        disabled={disabled}
+  1051→        onCheckedChange={(v) => onChange(v === true)}
+  1052→      />
+  1053→      <span className="flex-1">
+  1054→        <span className="font-medium">{label}</span>
+  1055→        <span className="ml-1.5" style={{ color: "var(--text-muted)" }}>
+  1056→          — {description}
+  1057→        </span>
+  1058→      </span>
+  1059→    </label>
+  1060→  );
+  1061→}
+  1062→
+  1063→// ============================================================
+  1064→// DEFAULT LAYOUTS TAB
+  1065→// ============================================================
+  1066→function DefaultLayoutsTab() {
+  1067→  const gs = useGlobalSettings();
+  1068→  const { updateGlobalSettings } = useContentStore();
+  1069→  const [draft, setDraft] = useState<GlobalSettings>(gs);
+  1070→
+  1071→  useEffect(() => setDraft(gs), [gs]);
+  1072→
+  1073→  function save() {
+  1074→    updateGlobalSettings(draft);
+  1075→    toast.success("Default page layouts saved.");
+  1076→  }
+  1077→
+  1078→  return (
+  1079→    <Card>
+  1080→      <CardHeader>
+  1081→        <CardTitle className="font-display">Default page layouts</CardTitle>
+  1082→        <CardDescription>
+  1083→          The header/footer variant applied to newly created pages by
+  1084→          default. Existing pages keep their current setting.
+  1085→        </CardDescription>
+  1086→      </CardHeader>
+  1087→      <CardContent className="space-y-4">
+  1088→        <div className="grid gap-3 sm:grid-cols-2">
+  1089→          <div className="space-y-1.5">
+  1090→            <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+  1091→              Default header
+  1092→            </Label>
+  1093→            <Select
+  1094→              value={draft.defaultPageLayout?.header ?? draft.headerVariant}
+  1095→              onValueChange={(v) =>
+  1096→                setDraft({
+  1097→                  ...draft,
+  1098→                  defaultPageLayout: {
+  1099→                    header: v as GlobalSettings["headerVariant"],
+  1100→                    footer: draft.defaultPageLayout?.footer ?? draft.footerVariant,
+  1101→                  },
+  1102→                })
+  1103→              }
+  1104→            >
+  1105→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1106→              <SelectContent>
+  1107→                <SelectItem value="default">Default</SelectItem>
+  1108→                <SelectItem value="full">Full</SelectItem>
+  1109→                <SelectItem value="minimal">Minimal</SelectItem>
+  1110→                <SelectItem value="with-announcement">With announcement</SelectItem>
+  1111→              </SelectContent>
+  1112→            </Select>
+  1113→          </div>
+  1114→          <div className="space-y-1.5">
+  1115→            <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+  1116→              Default footer
+  1117→            </Label>
+  1118→            <Select
+  1119→              value={draft.defaultPageLayout?.footer ?? draft.footerVariant}
+  1120→              onValueChange={(v) =>
+  1121→                setDraft({
+  1122→                  ...draft,
+  1123→                  defaultPageLayout: {
+  1124→                    header: draft.defaultPageLayout?.header ?? draft.headerVariant,
+  1125→                    footer: v as GlobalSettings["footerVariant"],
+  1126→                  },
+  1127→                })
+  1128→              }
+  1129→            >
+  1130→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1131→              <SelectContent>
+  1132→                <SelectItem value="default">Default</SelectItem>
+  1133→                <SelectItem value="full">Full</SelectItem>
+  1134→                <SelectItem value="minimal">Minimal</SelectItem>
+  1135→              </SelectContent>
+  1136→            </Select>
+  1137→          </div>
+  1138→        </div>
+  1139→        <SaveButton onClick={save} />
+  1140→      </CardContent>
+  1141→    </Card>
+  1142→  );
+  1143→}
+  1144→
+  1145→// ============================================================
+  1146→// ADMIN APPEARANCE TAB
+  1147→// ============================================================
+  1148→function AdminAppearanceTab() {
+  1149→  const [appearance, setAppearance] = useState<AdminAppearanceState>(DEFAULT_APPEARANCE);
+  1150→  const [hydrated, setHydrated] = useState(false);
+  1151→
+  1152→  // Hydrate from localStorage
+  1153→  useEffect(() => {
+  1154→    try {
+  1155→      const raw = window.localStorage.getItem(ADMIN_APPEARANCE_KEY);
+  1156→      if (raw) {
+  1157→        setAppearance({ ...DEFAULT_APPEARANCE, ...JSON.parse(raw) });
+  1158→      }
+  1159→    } catch {
+  1160→      // ignore
+  1161→    }
+  1162→    setHydrated(true);
+  1163→  }, []);
+  1164→
+  1165→  // Persist on change
+  1166→  useEffect(() => {
+  1167→    if (!hydrated) return;
+  1168→    try {
+  1169→      window.localStorage.setItem(ADMIN_APPEARANCE_KEY, JSON.stringify(appearance));
+  1170→      // Apply theme to the admin's next-themes key
+  1171→      window.localStorage.setItem(ADMIN_THEME_KEY, appearance.theme);
+  1172→      toast.success("Admin appearance saved.");
+  1173→    } catch {
+  1174→      // ignore
+  1175→    }
+  1176→  }, [appearance, hydrated]);
+  1177→
+  1178→  if (!hydrated) {
+  1179→    return (
+  1180→      <Card>
+  1181→        <CardContent className="p-4">
+  1182→          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+  1183→            Loading…
+  1184→          </p>
+  1185→        </CardContent>
+  1186→      </Card>
+  1187→    );
+  1188→  }
+  1189→
+  1190→  return (
+  1191→    <Card>
+  1192→      <CardHeader>
+  1193→        <CardTitle className="font-display">Admin appearance</CardTitle>
+  1194→        <CardDescription>
+  1195→          Theme, sidebar default state, and table density for the admin
+  1196→          console. Persists to localStorage; applies on next admin visit.
+  1197→        </CardDescription>
+  1198→      </CardHeader>
+  1199→      <CardContent className="space-y-4">
+  1200→        <div className="space-y-1.5">
+  1201→          <Label className="text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+  1202→            Admin theme
+  1203→          </Label>
+  1204→          <Select
+  1205→            value={appearance.theme}
+  1206→            onValueChange={(v) => setAppearance({ ...appearance, theme: v as AdminAppearanceState["theme"] })}
+  1207→          >
+  1208→            <SelectTrigger><SelectValue /></SelectTrigger>
+  1209→            <SelectContent>
+  1210→              <SelectItem value="light">Light</SelectItem>
+  1211→              <SelectItem value="dark">Dark</SelectItem>
+  1212→              <SelectItem value="system">System</SelectItem>
+  1213→            </SelectContent>
+  1214→          </Select>
+  1215→        </div>
+  1216→
+  1217→        <ToggleRow
+  1218→          label="Sidebar default collapsed"
+  1219→          description="When set, the sidebar starts collapsed on each admin visit."
+  1220→          checked={appearance.sidebarDefaultCollapsed}
+  1221→          onChange={(c) => setAppearance({ ...appearance, sidebarDefaultCollapsed: c })}
+  1222→        />
+  1223→        <ToggleRow
+  1224→          label="Dense tables"
+  1225→          description="Tighter row padding in CRUD tables (more rows per screen)."
+  1226→          checked={appearance.denseTables}
+  1227→          onChange={(c) => setAppearance({ ...appearance, denseTables: c })}
+  1228→        />
+  1229→
+  1230→        <div
+  1231→          className="rounded-md border p-3 text-[11px]"
+  1232→          style={{
+  1233→            borderColor: "var(--border-subtle)",
+  1234→            backgroundColor: "var(--surface-2)",
+  1235→            color: "var(--text-muted)",
+  1236→          }}
+  1237→        >
+  1238→          <p>
+  1239→            <Badge variant="outline" className="mr-2 text-[10px]">Tip</Badge>
+  1240→            Theme is applied on next admin visit via the persisted
+  1241→            <code className="mx-1 rounded bg-black/10 px-1 py-0.5">techstar:admin:theme</code>
+  1242→            key. Sidebar collapse / dense tables are read by the
+  1243→            shell on mount.
+  1244→          </p>
+  1245→        </div>
+  1246→      </CardContent>
+  1247→    </Card>
+  1248→  );
+  1249→}
+  1250→
+  1251→function ToggleRow({
+  1252→  label,
+  1253→  description,
+  1254→  checked,
+  1255→  onChange,
+  1256→}: {
+  1257→  label: string;
+  1258→  description: string;
+  1259→  checked: boolean;
+  1260→  onChange: (c: boolean) => void;
+  1261→}) {
+  1262→  return (
+  1263→    <div className="flex items-center justify-between gap-3">
+  1264→      <div>
+  1265→        <h4 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+  1266→          {label}
+  1267→        </h4>
+  1268→        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+  1269→          {description}
+  1270→        </p>
+  1271→      </div>
+  1272→      <Switch checked={checked} onCheckedChange={(c) => onChange(c === true)} />
+  1273→    </div>
+  1274→  );
+  1275→}
+  1276→
+  1277→function SaveButton({ onClick }: { onClick: () => void }) {
+  1278→  return (
+  1279→    <Button onClick={onClick} className="gap-1.5">
+  1280→      <Save className="size-3.5" />
+  1281→      Save changes
+  1282→    </Button>
+  1283→  );
+  1284→}
+  1285→

@@ -1,0 +1,865 @@
+     1→"use client";
+     2→
+     3→import {
+     4→  createContext,
+     5→  useCallback,
+     6→  useContext,
+     7→  useEffect,
+     8→  useMemo,
+     9→  useRef,
+    10→  useState,
+    11→  type ReactNode,
+    12→} from "react";
+    13→import type {
+    14→  Announcement,
+    15→  Article,
+    16→  BrandSettings,
+    17→  ContentState,
+    18→  CookiePreferences,
+    19→  Faq,
+    20→  FooterLinkGroup,
+    21→  FormDefinition,
+    22→  GlobalSettings,
+    23→  Inquiry,
+    24→  InquiryStatus,
+    25→  LegalPage,
+    26→  MediaAsset,
+    27→  NavItem,
+    28→  PageContent,
+    29→  Project,
+    30→  PublishedPageSnapshot,
+    31→  Service,
+    32→  SocialLink,
+    33→  TeamMember,
+    34→  Testimonial,
+    35→} from "@/lib/types";
+    36→import { seedData } from "@/lib/seed-data";
+    37→
+    38→const STORAGE_KEY = "techstar:content:v1";
+    39→const COOKIE_KEY = "techstar:cookies:v1";
+    40→const SAVE_DEBOUNCE_MS = 300;
+    41→
+    42→// ============================================================
+    43→// CONTEXT SHAPE
+    44→// ============================================================
+    45→interface ContentStoreContextValue {
+    46→  state: ContentState;
+    47→  isDirty: boolean;
+    48→  lastSavedAt: string | null;
+    49→  // Read hooks (data lookups)
+    50→  getService: (slug: string) => Service | undefined;
+    51→  getServices: () => Service[];
+    52→  getProject: (slug: string) => Project | undefined;
+    53→  getArticle: (slug: string) => Article | undefined;
+    54→  getAnnouncement: () => Announcement | undefined;
+    55→  getBrand: () => BrandSettings;
+    56→  getGlobalSettings: () => GlobalSettings;
+    57→  getInquiries: () => Inquiry[];
+    58→  getMedia: () => MediaAsset[];
+    59→  getPage: (slug: string) => PageContent | undefined;
+    60→  // Mutations
+    61→  updateBrand: (partial: Partial<BrandSettings>) => void;
+    62→  updateService: (slug: string, partial: Partial<Service>) => void;
+    63→  upsertService: (service: Service) => void;
+    64→  deleteService: (slug: string) => void;
+    65→  updateProject: (slug: string, partial: Partial<Project>) => void;
+    66→  upsertProject: (project: Project) => void;
+    67→  deleteProject: (slug: string) => void;
+    68→  updateArticle: (slug: string, partial: Partial<Article>) => void;
+    69→  upsertArticle: (article: Article) => void;
+    70→  deleteArticle: (slug: string) => void;
+    71→  upsertInquiry: (inquiry: Inquiry) => void;
+    72→  updateInquiryStatus: (id: string, status: InquiryStatus) => void;
+    73→  deleteInquiry: (id: string) => void;
+    74→  upsertMedia: (media: MediaAsset) => void;
+    75→  deleteMedia: (id: string) => void;
+    76→  upsertPage: (page: PageContent) => void;
+    77→  deletePage: (slug: string) => void;
+    78→  updatePage: (slug: string, partial: Partial<PageContent>) => void;
+    79→  updatePageSections: (slug: string, sections: PageContent["sections"]) => void;
+    80→  publishPage: (slug: string) => void;
+    81→  unpublishPage: (slug: string) => void;
+    82→  updateAnnouncement: (id: string, partial: Partial<Announcement>) => void;
+    83→  upsertAnnouncement: (a: Announcement) => void;
+    84→  deleteAnnouncement: (id: string) => void;
+    85→  updateGlobalSettings: (partial: Partial<GlobalSettings>) => void;
+    86→  // Team / Faqs / Testimonials / Social / Nav / Footer / Legal / Forms
+    87→  upsertTeam: (m: TeamMember) => void;
+    88→  deleteTeam: (id: string) => void;
+    89→  upsertFaq: (f: Faq) => void;
+    90→  deleteFaq: (id: string) => void;
+    91→  upsertTestimonial: (t: Testimonial) => void;
+    92→  deleteTestimonial: (id: string) => void;
+    93→  upsertSocial: (s: SocialLink) => void;
+    94→  deleteSocial: (id: string) => void;
+    95→  updateNavigation: (nav: NavItem[]) => void;
+    96→  updateFooterLinks: (groups: FooterLinkGroup[]) => void;
+    97→  upsertLegalPage: (p: LegalPage) => void;
+    98→  upsertForm: (f: FormDefinition) => void;
+    99→  deleteForm: (id: string) => void;
+   100→  importJson: (json: ContentState) => void;
+   101→  exportJson: () => ContentState;
+   102→  resetToSeed: () => void;
+   103→  // Cookie preferences
+   104→  cookiePrefs: CookiePreferences;
+   105→  setCookiePrefs: (prefs: CookiePreferences) => void;
+   106→}
+   107→
+   108→const ContentStoreContext = createContext<ContentStoreContextValue | null>(null);
+   109→
+   110→// Deep clone helper (state is plain JSON-safe)
+   111→function clone<T>(value: T): T {
+   112→  if (typeof structuredClone === "function") return structuredClone(value);
+   113→  return JSON.parse(JSON.stringify(value));
+   114→}
+   115→
+   116→const DEFAULT_COOKIE_PREFS: CookiePreferences = {
+   117→  essential: true,
+   118→  analytics: false,
+   119→  marketing: false,
+   120→  functional: true,
+   121→};
+   122→
+   123→// ============================================================
+   124→// PROVIDER
+   125→// ============================================================
+   126→export function ContentStoreProvider({ children }: { children: ReactNode }) {
+   127→  const [state, setState] = useState<ContentState>(() => clone(seedData));
+   128→  const [isDirty, setIsDirty] = useState(false);
+   129→  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+   130→  const [hydrated, setHydrated] = useState(false);
+   131→  const [cookiePrefs, setCookiePrefsState] = useState<CookiePreferences>(DEFAULT_COOKIE_PREFS);
+   132→  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   133→
+   134→  // ---- Hydrate from localStorage on mount ----
+   135→  useEffect(() => {
+   136→    try {
+   137→      const raw = window.localStorage.getItem(STORAGE_KEY);
+   138→      if (raw) {
+   139→        const parsed = JSON.parse(raw) as ContentState;
+   140→        // Light sanity check
+   141→        if (parsed && parsed.services && parsed.brand) {
+   142→          setState(parsed);
+   143→        }
+   144→      }
+   145→      const cookieRaw = window.localStorage.getItem(COOKIE_KEY);
+   146→      if (cookieRaw) {
+   147→        setCookiePrefsState(JSON.parse(cookieRaw) as CookiePreferences);
+   148→      }
+   149→    } catch {
+   150→      // fall back to seed
+   151→    }
+   152→    setHydrated(true);
+   153→  }, []);
+   154→
+   155→  // ---- Persist (debounced) ----
+   156→  useEffect(() => {
+   157→    if (!hydrated) return;
+   158→    setIsDirty(true);
+   159→    if (saveTimer.current) clearTimeout(saveTimer.current);
+   160→    saveTimer.current = setTimeout(() => {
+   161→      try {
+   162→        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+   163→        setLastSavedAt(new Date().toISOString());
+   164→        setIsDirty(false);
+   165→      } catch {
+   166→        // quota / unavailable
+   167→      }
+   168→    }, SAVE_DEBOUNCE_MS);
+   169→    return () => {
+   170→      if (saveTimer.current) clearTimeout(saveTimer.current);
+   171→    };
+   172→  }, [state, hydrated]);
+   173→
+   174→  // ---- Cookie prefs persistence ----
+   175→  useEffect(() => {
+   176→    if (!hydrated) return;
+   177→    try {
+   178→      window.localStorage.setItem(COOKIE_KEY, JSON.stringify(cookiePrefs));
+   179→    } catch {
+   180→      // ignore
+   181→    }
+   182→  }, [cookiePrefs, hydrated]);
+   183→
+   184→  // ============================================================
+   185→  // READ LOOKUPS (memoized)
+   186→  // ============================================================
+   187→  const getService = useCallback(
+   188→    (slug: string) => state.services.find((s) => s.slug === slug),
+   189→    [state.services]
+   190→  );
+   191→  const getServices = useCallback(() => state.services, [state.services]);
+   192→  const getProject = useCallback(
+   193→    (slug: string) => state.projects.find((p) => p.slug === slug),
+   194→    [state.projects]
+   195→  );
+   196→  const getArticle = useCallback(
+   197→    (slug: string) => state.articles.find((a) => a.slug === slug),
+   198→    [state.articles]
+   199→  );
+   200→  const getAnnouncement = useCallback(
+   201→    () => state.announcements.find((a) => a.active) || undefined,
+   202→    [state.announcements]
+   203→  );
+   204→  const getBrand = useCallback(() => state.brand, [state.brand]);
+   205→  const getGlobalSettings = useCallback(() => state.globalSettings, [state.globalSettings]);
+   206→  const getInquiries = useCallback(() => state.inquiries, [state.inquiries]);
+   207→  const getMedia = useCallback(() => state.media, [state.media]);
+   208→  const getPage = useCallback(
+   209→    (slug: string) => state.pages.find((p) => p.slug === slug),
+   210→    [state.pages]
+   211→  );
+   212→
+   213→  // ============================================================
+   214→  // MUTATIONS
+   215→  // ============================================================
+   216→  const updateBrand = useCallback((partial: Partial<BrandSettings>) => {
+   217→    setState((prev) => ({ ...prev, brand: { ...prev.brand, ...partial } }));
+   218→  }, []);
+   219→
+   220→  const updateService = useCallback((slug: string, partial: Partial<Service>) => {
+   221→    setState((prev) => ({
+   222→      ...prev,
+   223→      services: prev.services.map((s) => (s.slug === slug ? { ...s, ...partial } : s)),
+   224→    }));
+   225→  }, []);
+   226→
+   227→  const upsertService = useCallback((service: Service) => {
+   228→    setState((prev) => {
+   229→      const exists = prev.services.some((s) => s.slug === service.slug);
+   230→      return {
+   231→        ...prev,
+   232→        services: exists
+   233→          ? prev.services.map((s) => (s.slug === service.slug ? service : s))
+   234→          : [...prev.services, service],
+   235→      };
+   236→    });
+   237→  }, []);
+   238→
+   239→  const deleteService = useCallback((slug: string) => {
+   240→    setState((prev) => ({
+   241→      ...prev,
+   242→      services: prev.services.filter((s) => s.slug !== slug),
+   243→    }));
+   244→  }, []);
+   245→
+   246→  const updateProject = useCallback((slug: string, partial: Partial<Project>) => {
+   247→    setState((prev) => ({
+   248→      ...prev,
+   249→      projects: prev.projects.map((p) => (p.slug === slug ? { ...p, ...partial } : p)),
+   250→    }));
+   251→  }, []);
+   252→
+   253→  const upsertProject = useCallback((project: Project) => {
+   254→    setState((prev) => {
+   255→      const exists = prev.projects.some((p) => p.slug === project.slug);
+   256→      return {
+   257→        ...prev,
+   258→        projects: exists
+   259→          ? prev.projects.map((p) => (p.slug === project.slug ? project : p))
+   260→          : [...prev.projects, project],
+   261→      };
+   262→    });
+   263→  }, []);
+   264→
+   265→  const deleteProject = useCallback((slug: string) => {
+   266→    setState((prev) => ({
+   267→      ...prev,
+   268→      projects: prev.projects.filter((p) => p.slug !== slug),
+   269→    }));
+   270→  }, []);
+   271→
+   272→  const updateArticle = useCallback((slug: string, partial: Partial<Article>) => {
+   273→    setState((prev) => ({
+   274→      ...prev,
+   275→      articles: prev.articles.map((a) => (a.slug === slug ? { ...a, ...partial } : a)),
+   276→    }));
+   277→  }, []);
+   278→
+   279→  const upsertArticle = useCallback((article: Article) => {
+   280→    setState((prev) => {
+   281→      const exists = prev.articles.some((a) => a.slug === article.slug);
+   282→      return {
+   283→        ...prev,
+   284→        articles: exists
+   285→          ? prev.articles.map((a) => (a.slug === article.slug ? article : a))
+   286→          : [...prev.articles, article],
+   287→      };
+   288→    });
+   289→  }, []);
+   290→
+   291→  const deleteArticle = useCallback((slug: string) => {
+   292→    setState((prev) => ({
+   293→      ...prev,
+   294→      articles: prev.articles.filter((a) => a.slug !== slug),
+   295→    }));
+   296→  }, []);
+   297→
+   298→  const upsertInquiry = useCallback((inquiry: Inquiry) => {
+   299→    setState((prev) => {
+   300→      const exists = prev.inquiries.some((i) => i.id === inquiry.id);
+   301→      return {
+   302→        ...prev,
+   303→        inquiries: exists
+   304→          ? prev.inquiries.map((i) => (i.id === inquiry.id ? inquiry : i))
+   305→          : [inquiry, ...prev.inquiries],
+   306→      };
+   307→    });
+   308→  }, []);
+   309→
+   310→  const updateInquiryStatus = useCallback((id: string, status: InquiryStatus) => {
+   311→    setState((prev) => ({
+   312→      ...prev,
+   313→      inquiries: prev.inquiries.map((i) => (i.id === id ? { ...i, status } : i)),
+   314→    }));
+   315→  }, []);
+   316→
+   317→  const deleteInquiry = useCallback((id: string) => {
+   318→    setState((prev) => ({
+   319→      ...prev,
+   320→      inquiries: prev.inquiries.filter((i) => i.id !== id),
+   321→    }));
+   322→  }, []);
+   323→
+   324→  const upsertMedia = useCallback((media: MediaAsset) => {
+   325→    setState((prev) => {
+   326→      const exists = prev.media.some((m) => m.id === media.id);
+   327→      return {
+   328→        ...prev,
+   329→        media: exists
+   330→          ? prev.media.map((m) => (m.id === media.id ? media : m))
+   331→          : [media, ...prev.media],
+   332→      };
+   333→    });
+   334→  }, []);
+   335→
+   336→  const deleteMedia = useCallback((id: string) => {
+   337→    setState((prev) => ({
+   338→      ...prev,
+   339→      media: prev.media.filter((m) => m.id !== id),
+   340→    }));
+   341→  }, []);
+   342→
+   343→  const upsertPage = useCallback((page: PageContent) => {
+   344→    setState((prev) => {
+   345→      const exists = prev.pages.some((p) => p.slug === page.slug);
+   346→      return {
+   347→        ...prev,
+   348→        pages: exists
+   349→          ? prev.pages.map((p) => (p.slug === page.slug ? page : p))
+   350→          : [...prev.pages, page],
+   351→      };
+   352→    });
+   353→  }, []);
+   354→
+   355→  const deletePage = useCallback((slug: string) => {
+   356→    setState((prev) => ({
+   357→      ...prev,
+   358→      pages: prev.pages.filter((p) => p.slug !== slug),
+   359→    }));
+   360→  }, []);
+   361→
+   362→  const updatePage = useCallback((slug: string, partial: Partial<PageContent>) => {
+   363→    setState((prev) => ({
+   364→      ...prev,
+   365→      pages: prev.pages.map((p) =>
+   366→        p.slug === slug
+   367→          ? { ...p, ...partial, updatedAt: new Date().toISOString() }
+   368→          : p
+   369→      ),
+   370→    }));
+   371→  }, []);
+   372→
+   373→  const updatePageSections = useCallback(
+   374→    (slug: string, sections: PageContent["sections"]) => {
+   375→      setState((prev) => ({
+   376→        ...prev,
+   377→        pages: prev.pages.map((p) =>
+   378→          p.slug === slug
+   379→            ? { ...p, sections, updatedAt: new Date().toISOString() }
+   380→            : p
+   381→        ),
+   382→      }));
+   383→    },
+   384→    []
+   385→  );
+   386→
+   387→  const publishPage = useCallback((slug: string) => {
+   388→    const stamp = new Date().toISOString();
+   389→    setState((prev) => ({
+   390→      ...prev,
+   391→      pages: prev.pages.map((p) => {
+   392→        if (p.slug !== slug) return p;
+   393→        const snapshot: PublishedPageSnapshot = {
+   394→          title: p.title,
+   395→          excerpt: p.excerpt,
+   396→          bodyHtml: p.bodyHtml,
+   397→          featuredImage: p.featuredImage,
+   398→          authorId: p.authorId,
+   399→          seo: p.seo ? { ...p.seo } : { title: p.title },
+   400→          publishedAt: stamp,
+   401→        };
+   402→        return {
+   403→          ...p,
+   404→          status: "published" as const,
+   405→          publishedAt: stamp,
+   406→          updatedAt: stamp,
+   407→          publishedSnapshot: snapshot,
+   408→          // Phase 4 visual builder — capture the working sections as the
+   409→          // last-published snapshot so the public preview route renders
+   410→          // a stable version even as the user keeps editing the draft.
+   411→          publishedSections: p.sections ? p.sections.map((s) => ({ ...s })) : [],
+   412→        };
+   413→      }),
+   414→    }));
+   415→  }, []);
+   416→
+   417→  const unpublishPage = useCallback((slug: string) => {
+   418→    const stamp = new Date().toISOString();
+   419→    setState((prev) => ({
+   420→      ...prev,
+   421→      pages: prev.pages.map((p) =>
+   422→        p.slug === slug
+   423→          ? { ...p, status: "archived" as const, updatedAt: stamp, publishedSections: [] }
+   424→          : p
+   425→      ),
+   426→    }));
+   427→  }, []);
+   428→
+   429→  const updateAnnouncement = useCallback(
+   430→    (id: string, partial: Partial<Announcement>) => {
+   431→      setState((prev) => ({
+   432→        ...prev,
+   433→        announcements: prev.announcements.map((a) =>
+   434→          a.id === id ? { ...a, ...partial } : a
+   435→        ),
+   436→      }));
+   437→    },
+   438→    []
+   439→  );
+   440→
+   441→  const upsertAnnouncement = useCallback((a: Announcement) => {
+   442→    setState((prev) => {
+   443→      const exists = prev.announcements.some((x) => x.id === a.id);
+   444→      // Single-active rule: when the incoming announcement is active,
+   445→      // deactivate all others. Otherwise leave active flags alone.
+   446→      const announcements = exists
+   447→        ? prev.announcements.map((x) =>
+   448→            x.id === a.id
+   449→              ? a
+   450→              : a.active
+   451→              ? { ...x, active: false }
+   452→              : x
+   453→          )
+   454→        : a.active
+   455→        ? [...prev.announcements.map((x) => ({ ...x, active: false })), a]
+   456→        : [...prev.announcements, a];
+   457→      return { ...prev, announcements };
+   458→    });
+   459→  }, []);
+   460→
+   461→  const deleteAnnouncement = useCallback((id: string) => {
+   462→    setState((prev) => ({
+   463→      ...prev,
+   464→      announcements: prev.announcements.filter((a) => a.id !== id),
+   465→    }));
+   466→  }, []);
+   467→
+   468→  // ---- Team ----
+   469→  const upsertTeam = useCallback((m: TeamMember) => {
+   470→    setState((prev) => {
+   471→      const exists = prev.team.some((x) => x.id === m.id);
+   472→      return {
+   473→        ...prev,
+   474→        team: exists
+   475→          ? prev.team.map((x) => (x.id === m.id ? m : x))
+   476→          : [...prev.team, m],
+   477→      };
+   478→    });
+   479→  }, []);
+   480→
+   481→  const deleteTeam = useCallback((id: string) => {
+   482→    setState((prev) => ({
+   483→      ...prev,
+   484→      team: prev.team.filter((m) => m.id !== id),
+   485→    }));
+   486→  }, []);
+   487→
+   488→  // ---- FAQs ----
+   489→  const upsertFaq = useCallback((f: Faq) => {
+   490→    setState((prev) => {
+   491→      const exists = prev.faqs.some((x) => x.id === f.id);
+   492→      return {
+   493→        ...prev,
+   494→        faqs: exists
+   495→          ? prev.faqs.map((x) => (x.id === f.id ? f : x))
+   496→          : [...prev.faqs, f],
+   497→      };
+   498→    });
+   499→  }, []);
+   500→
+   501→  const deleteFaq = useCallback((id: string) => {
+   502→    setState((prev) => ({
+   503→      ...prev,
+   504→      faqs: prev.faqs.filter((f) => f.id !== id),
+   505→    }));
+   506→  }, []);
+   507→
+   508→  // ---- Testimonials ----
+   509→  const upsertTestimonial = useCallback((t: Testimonial) => {
+   510→    setState((prev) => {
+   511→      const exists = prev.testimonials.some((x) => x.id === t.id);
+   512→      return {
+   513→        ...prev,
+   514→        testimonials: exists
+   515→          ? prev.testimonials.map((x) => (x.id === t.id ? t : x))
+   516→          : [...prev.testimonials, t],
+   517→      };
+   518→    });
+   519→  }, []);
+   520→
+   521→  const deleteTestimonial = useCallback((id: string) => {
+   522→    setState((prev) => ({
+   523→      ...prev,
+   524→      testimonials: prev.testimonials.filter((t) => t.id !== id),
+   525→    }));
+   526→  }, []);
+   527→
+   528→  // ---- Social links (live on globalSettings.socials) ----
+   529→  const upsertSocial = useCallback((s: SocialLink) => {
+   530→    setState((prev) => {
+   531→      const socials = prev.globalSettings.socials;
+   532→      const exists = socials.some((x) => x.id === s.id);
+   533→      const next = exists
+   534→        ? socials.map((x) => (x.id === s.id ? s : x))
+   535→        : [...socials, s];
+   536→      return {
+   537→        ...prev,
+   538→        globalSettings: { ...prev.globalSettings, socials: next },
+   539→      };
+   540→    });
+   541→  }, []);
+   542→
+   543→  const deleteSocial = useCallback((id: string) => {
+   544→    setState((prev) => ({
+   545→      ...prev,
+   546→      globalSettings: {
+   547→        ...prev.globalSettings,
+   548→        socials: prev.globalSettings.socials.filter((s) => s.id !== id),
+   549→      },
+   550→    }));
+   551→  }, []);
+   552→
+   553→  // ---- Navigation ----
+   554→  const updateNavigation = useCallback((nav: NavItem[]) => {
+   555→    setState((prev) => ({ ...prev, navigation: nav }));
+   556→  }, []);
+   557→
+   558→  const updateFooterLinks = useCallback((groups: FooterLinkGroup[]) => {
+   559→    setState((prev) => ({ ...prev, footerLinks: groups }));
+   560→  }, []);
+   561→
+   562→  // ---- Legal pages ----
+   563→  const upsertLegalPage = useCallback((p: LegalPage) => {
+   564→    setState((prev) => {
+   565→      const exists = prev.legalPages.some((x) => x.slug === p.slug);
+   566→      return {
+   567→        ...prev,
+   568→        legalPages: exists
+   569→          ? prev.legalPages.map((x) => (x.slug === p.slug ? p : x))
+   570→          : [...prev.legalPages, p],
+   571→      };
+   572→    });
+   573→  }, []);
+   574→
+   575→  // ---- Forms ----
+   576→  const upsertForm = useCallback((f: FormDefinition) => {
+   577→    setState((prev) => {
+   578→      const exists = prev.forms.some((x) => x.id === f.id);
+   579→      return {
+   580→        ...prev,
+   581→        forms: exists
+   582→          ? prev.forms.map((x) => (x.id === f.id ? f : x))
+   583→          : [...prev.forms, f],
+   584→      };
+   585→    });
+   586→  }, []);
+   587→
+   588→  const deleteForm = useCallback((id: string) => {
+   589→    setState((prev) => ({
+   590→      ...prev,
+   591→      forms: prev.forms.filter((f) => f.id !== id),
+   592→    }));
+   593→  }, []);
+   594→
+   595→  const updateGlobalSettings = useCallback((partial: Partial<GlobalSettings>) => {
+   596→    setState((prev) => ({
+   597→      ...prev,
+   598→      globalSettings: { ...prev.globalSettings, ...partial },
+   599→    }));
+   600→  }, []);
+   601→
+   602→  const importJson = useCallback((json: ContentState) => {
+   603→    setState(clone(json));
+   604→  }, []);
+   605→
+   606→  const exportJson = useCallback(() => clone(state), [state]);
+   607→
+   608→  const resetToSeed = useCallback(() => {
+   609→    setState(clone(seedData));
+   610→  }, []);
+   611→
+   612→  const setCookiePrefs = useCallback((prefs: CookiePreferences) => {
+   613→    setCookiePrefsState({ ...prefs, savedAt: new Date().toISOString() });
+   614→  }, []);
+   615→
+   616→  const value = useMemo<ContentStoreContextValue>(
+   617→    () => ({
+   618→      state,
+   619→      isDirty,
+   620→      lastSavedAt,
+   621→      getService,
+   622→      getServices,
+   623→      getProject,
+   624→      getArticle,
+   625→      getAnnouncement,
+   626→      getBrand,
+   627→      getGlobalSettings,
+   628→      getInquiries,
+   629→      getMedia,
+   630→      getPage,
+   631→      updateBrand,
+   632→      updateService,
+   633→      upsertService,
+   634→      deleteService,
+   635→      updateProject,
+   636→      upsertProject,
+   637→      deleteProject,
+   638→      updateArticle,
+   639→      upsertArticle,
+   640→      deleteArticle,
+   641→      upsertInquiry,
+   642→      updateInquiryStatus,
+   643→      deleteInquiry,
+   644→      upsertMedia,
+   645→      deleteMedia,
+   646→      upsertPage,
+   647→      deletePage,
+   648→      updatePage,
+   649→      updatePageSections,
+   650→      publishPage,
+   651→      unpublishPage,
+   652→      updateAnnouncement,
+   653→      upsertAnnouncement,
+   654→      deleteAnnouncement,
+   655→      updateGlobalSettings,
+   656→      upsertTeam,
+   657→      deleteTeam,
+   658→      upsertFaq,
+   659→      deleteFaq,
+   660→      upsertTestimonial,
+   661→      deleteTestimonial,
+   662→      upsertSocial,
+   663→      deleteSocial,
+   664→      updateNavigation,
+   665→      updateFooterLinks,
+   666→      upsertLegalPage,
+   667→      upsertForm,
+   668→      deleteForm,
+   669→      importJson,
+   670→      exportJson,
+   671→      resetToSeed,
+   672→      cookiePrefs,
+   673→      setCookiePrefs,
+   674→    }),
+   675→    [
+   676→      state,
+   677→      isDirty,
+   678→      lastSavedAt,
+   679→      getService,
+   680→      getServices,
+   681→      getProject,
+   682→      getArticle,
+   683→      getAnnouncement,
+   684→      getBrand,
+   685→      getGlobalSettings,
+   686→      getInquiries,
+   687→      getMedia,
+   688→      getPage,
+   689→      updateBrand,
+   690→      updateService,
+   691→      upsertService,
+   692→      deleteService,
+   693→      updateProject,
+   694→      upsertProject,
+   695→      deleteProject,
+   696→      updateArticle,
+   697→      upsertArticle,
+   698→      deleteArticle,
+   699→      upsertInquiry,
+   700→      updateInquiryStatus,
+   701→      deleteInquiry,
+   702→      upsertMedia,
+   703→      deleteMedia,
+   704→      upsertPage,
+   705→      deletePage,
+   706→      updatePage,
+   707→      updatePageSections,
+   708→      publishPage,
+   709→      unpublishPage,
+   710→      updateAnnouncement,
+   711→      upsertAnnouncement,
+   712→      deleteAnnouncement,
+   713→      updateGlobalSettings,
+   714→      upsertTeam,
+   715→      deleteTeam,
+   716→      upsertFaq,
+   717→      deleteFaq,
+   718→      upsertTestimonial,
+   719→      deleteTestimonial,
+   720→      upsertSocial,
+   721→      deleteSocial,
+   722→      updateNavigation,
+   723→      updateFooterLinks,
+   724→      upsertLegalPage,
+   725→      upsertForm,
+   726→      deleteForm,
+   727→      importJson,
+   728→      exportJson,
+   729→      resetToSeed,
+   730→      cookiePrefs,
+   731→      setCookiePrefs,
+   732→    ]
+   733→  );
+   734→
+   735→  return (
+   736→    <ContentStoreContext.Provider value={value}>{children}</ContentStoreContext.Provider>
+   737→  );
+   738→}
+   739→
+   740→// ============================================================
+   741→// HOOKS
+   742→// ============================================================
+   743→export function useContentStore() {
+   744→  const ctx = useContext(ContentStoreContext);
+   745→  if (!ctx) {
+   746→    throw new Error("useContentStore must be used within <ContentStoreProvider>");
+   747→  }
+   748→  return ctx;
+   749→}
+   750→
+   751→export function useContent() {
+   752→  return useContentStore().state;
+   753→}
+   754→
+   755→export function useService(slug: string | undefined) {
+   756→  const ctx = useContentStore();
+   757→  return slug ? ctx.getService(slug) : undefined;
+   758→}
+   759→
+   760→export function useServices() {
+   761→  return useContentStore().getServices();
+   762→}
+   763→
+   764→export function useProject(slug: string | undefined) {
+   765→  const ctx = useContentStore();
+   766→  return slug ? ctx.getProject(slug) : undefined;
+   767→}
+   768→
+   769→export function useIndustry(slug: string | undefined) {
+   770→  const ctx = useContentStore();
+   771→  return slug ? ctx.state.industries.find((i) => i.slug === slug) : undefined;
+   772→}
+   773→
+   774→export function useAuthor(id: string | undefined) {
+   775→  const ctx = useContentStore();
+   776→  return id ? ctx.state.authors.find((a) => a.id === id) : undefined;
+   777→}
+   778→
+   779→export function useTeam() {
+   780→  return useContentStore().state.team;
+   781→}
+   782→
+   783→export function useIndustries() {
+   784→  return useContentStore().state.industries;
+   785→}
+   786→
+   787→export function useServiceCategories() {
+   788→  return useContentStore().state.serviceCategories;
+   789→}
+   790→
+   791→export function useFaqs() {
+   792→  return useContentStore().state.faqs;
+   793→}
+   794→
+   795→export function useArticles() {
+   796→  return useContentStore().state.articles;
+   797→}
+   798→
+   799→export function useAuthors() {
+   800→  return useContentStore().state.authors;
+   801→}
+   802→
+   803→export function useProjects() {
+   804→  return useContentStore().state.projects;
+   805→}
+   806→
+   807→export function useArticle(slug: string | undefined) {
+   808→  const ctx = useContentStore();
+   809→  return slug ? ctx.getArticle(slug) : undefined;
+   810→}
+   811→
+   812→export function useAnnouncement() {
+   813→  return useContentStore().getAnnouncement();
+   814→}
+   815→
+   816→export function useBrand() {
+   817→  return useContentStore().getBrand();
+   818→}
+   819→
+   820→export function useGlobalSettings() {
+   821→  return useContentStore().getGlobalSettings();
+   822→}
+   823→
+   824→export function useInquiries() {
+   825→  return useContentStore().getInquiries();
+   826→}
+   827→
+   828→export function useMedia() {
+   829→  return useContentStore().getMedia();
+   830→}
+   831→
+   832→export function usePage(slug: string | undefined) {
+   833→  const ctx = useContentStore();
+   834→  return slug ? ctx.getPage(slug) : undefined;
+   835→}
+   836→
+   837→export function usePages() {
+   838→  return useContentStore().state.pages;
+   839→}
+   840→
+   841→export function useFooterLinks() {
+   842→  return useContentStore().state.footerLinks;
+   843→}
+   844→
+   845→export function useForms() {
+   846→  return useContentStore().state.forms;
+   847→}
+   848→
+   849→export function useLegalPages() {
+   850→  return useContentStore().state.legalPages;
+   851→}
+   852→
+   853→export function useLegalPage(slug: string | undefined) {
+   854→  const ctx = useContentStore();
+   855→  return slug ? ctx.state.legalPages.find((p) => p.slug === slug) : undefined;
+   856→}
+   857→
+   858→export function useTestimonials() {
+   859→  return useContentStore().state.testimonials;
+   860→}
+   861→
+   862→export function useNavigation() {
+   863→  return useContentStore().state.navigation;
+   864→}
+   865→

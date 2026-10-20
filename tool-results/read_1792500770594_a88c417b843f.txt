@@ -1,0 +1,813 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useMemo, useRef, useState } from "react";
+     4→import { toast } from "sonner";
+     5→import { Button } from "@/components/ui/button";
+     6→import { Input } from "@/components/ui/input";
+     7→import { Card, CardContent } from "@/components/ui/card";
+     8→import { Badge } from "@/components/ui/badge";
+     9→import {
+    10→  Select,
+    11→  SelectContent,
+    12→  SelectItem,
+    13→  SelectTrigger,
+    14→  SelectValue,
+    15→} from "@/components/ui/select";
+    16→import {
+    17→  Table,
+    18→  TableBody,
+    19→  TableCell,
+    20→  TableHead,
+    21→  TableHeader,
+    22→  TableRow,
+    23→} from "@/components/ui/table";
+    24→import {
+    25→  DropdownMenu,
+    26→  DropdownMenuContent,
+    27→  DropdownMenuItem,
+    28→  DropdownMenuLabel,
+    29→  DropdownMenuSeparator,
+    30→  DropdownMenuTrigger,
+    31→} from "@/components/ui/dropdown-menu";
+    32→import {
+    33→  LayoutGrid,
+    34→  List as ListIcon,
+    35→  Search,
+    36→  Upload,
+    37→  ImageIcon,
+    38→  Video as VideoIcon,
+    39→  Code as EmbedIcon,
+    40→  AlertTriangle,
+    41→  MoreHorizontal,
+    42→  Copy,
+    43→  FileText,
+    44→  Pencil,
+    45→  Trash2,
+    46→  ExternalLink,
+    47→} from "lucide-react";
+    48→import { useContentStore, useMedia } from "@/lib/content-store";
+    49→import type { MediaAsset } from "@/lib/types";
+    50→import {
+    51→  deleteMediaBlob,
+    52→  listMediaBlobs,
+    53→  mediaKindFromMime,
+    54→  putMediaBlob,
+    55→  takeMemoryUnavailableFlag,
+    56→  type StoredMediaBlob,
+    57→  MediaQuotaError,
+    58→} from "@/lib/indexeddb";
+    59→import { copyToClipboard, formatDate, formatBytes } from "@/lib/utils";
+    60→import { MediaDetailDialog } from "./MediaDetailDialog";
+    61→import { MediaUploadDialog } from "./MediaUploadDialog";
+    62→import { ConfirmDialog } from "./ConfirmDialog";
+    63→
+    64→type TypeFilter = "all" | "image" | "video" | "embed";
+    65→type ViewMode = "grid" | "list";
+    66→
+    67→/**
+    68→ * Classify a MediaAsset into a filter bucket:
+    69→ *  - image  → "image"
+    70→ *  - video with a known embed host (youtube / vimeo / /embed/) → "embed"
+    71→ *  - other video → "video"
+    72→ *  - document/audio (rare in seed) → "embed" bucket so the filter
+    73→ *    still surfaces them rather than hiding them entirely.
+    74→ */
+    75→function classifyAsset(m: MediaAsset): TypeFilter {
+    76→  if (m.type === "image") return "image";
+    77→  if (m.type === "video") {
+    78→    const url = m.url.toLowerCase();
+    79→    if (
+    80→      url.includes("youtube") ||
+    81→      url.includes("youtu.be") ||
+    82→      url.includes("vimeo") ||
+    83→      url.includes("/embed/")
+    84→    ) {
+    85→      return "embed";
+    86→    }
+    87→    return "video";
+    88→  }
+    89→  return "embed";
+    90→}
+    91→
+    92→/**
+    93→ * Media library — admin route `#/admin/media`.
+    94→ *
+    95→ * Lists every MediaAsset (seed data + IndexedDB-persisted uploads).
+    96→ * Toolbar: live search, type filter (All | Image | Video | Embed),
+    97→ * grid/list toggle, and Upload (opens the upload dialog).
+    98→ *
+    99→ * Grid tile: thumbnail, filename, type chip, hover overlay with quick
+   100→ * actions (Edit / Copy URL / Delete).
+   101→ *
+   102→ * List view: table rows with thumbnail, filename, type, dimensions,
+   103→ * alt (with warning indicator if empty), created date, and a
+   104→ * per-row actions menu (Edit / Copy URL / Copy markdown / Delete).
+   105→ *
+   106→ * Click any tile/row to open the detail dialog. Detail dialog handles
+   107→ * all metadata edits + deletion.
+   108→ *
+   109→ * Honest scope: uploads are browser-local. They are NOT hosted and
+   110→ * may be cleared when the user clears browser data. Not suitable
+   111→ * for production. A persistent Alert at the top of the page says so.
+   112→ */
+   113→export function MediaLibrary() {
+   114→  const media = useMedia();
+   115→  const { upsertMedia, deleteMedia } = useContentStore();
+   116→
+   117→  const [query, setQuery] = useState("");
+   118→  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+   119→  const [view, setView] = useState<ViewMode>("grid");
+   120→
+   121→  const [selected, setSelected] = useState<MediaAsset | null>(null);
+   122→  const [detailOpen, setDetailOpen] = useState(false);
+   123→  const [deleteTarget, setDeleteTarget] = useState<MediaAsset | null>(null);
+   124→  const [uploadOpen, setUploadOpen] = useState(false);
+   125→
+   126→  // Track which asset ids were uploaded by the user (vs. seeded). Used
+   127→  // to know which IndexedDB blobs to clean up on delete + on the
+   128→  // "Reset only media" danger-zone action.
+   129→  const uploadedIdsRef = useRef<Set<string>>(new Set());
+   130→  const [uploadedVersion, setUploadedVersion] = useState(0);
+   131→
+   132→  // On mount, load IndexedDB-persisted uploads and surface them in the
+   133→  // store. Idempotent: skips ids that are already in the store.
+   134→  useEffect(() => {
+   135→    let cancelled = false;
+   136→    (async () => {
+   137→      try {
+   138→        const blobs = await listMediaBlobs();
+   139→        if (cancelled) return;
+   140→        for (const b of blobs) {
+   141→          if (media.some((m) => m.id === b.id)) {
+   142→            uploadedIdsRef.current.add(b.id);
+   143→            continue;
+   144→          }
+   145→          const url = URL.createObjectURL(b.blob);
+   146→          const asset: MediaAsset = {
+   147→            id: b.id,
+   148→            type: mediaKindFromMime(b.type) === "video" ? "video" : "image",
+   149→            url,
+   150→            title: b.fileName.replace(/\.[^.]+$/, ""),
+   151→            alt: b.fileName.replace(/\.[^.]+$/, ""),
+   152→            fileName: b.fileName,
+   153→            createdAt: b.createdAt,
+   154→            tags: ["upload"],
+   155→          };
+   156→          uploadedIdsRef.current.add(b.id);
+   157→          upsertMedia(asset);
+   158→        }
+   159→        setUploadedVersion((v) => v + 1);
+   160→        if (takeMemoryUnavailableFlag()) {
+   161→          toast.warning("IndexedDB unavailable — uploads won't persist.");
+   162→        }
+   163→      } catch (err) {
+   164→        if (!cancelled) {
+   165→          toast.error("Failed to load uploaded media from browser storage.");
+   166→           
+   167→          console.warn(err);
+   168→        }
+   169→      }
+   170→    })();
+   171→    return () => {
+   172→      cancelled = true;
+   173→    };
+   174→     
+   175→  }, []);
+   176→
+   177→  // Re-resolve the currently-selected asset whenever the store
+   178→  // updates (e.g. after a delete or after an edit). Falls back to
+   179→  // null when the asset has been removed.
+   180→  useEffect(() => {
+   181→    if (!selected) return;
+   182→    const fresh = media.find((m) => m.id === selected.id) ?? null;
+   183→    if (fresh?.title !== selected.title || fresh?.alt !== selected.alt || fresh?.description !== selected.description) {
+   184→      setSelected(fresh);
+   185→    }
+   186→  }, [media, selected]);
+   187→
+   188→  const filtered = useMemo(() => {
+   189→    const q = query.trim().toLowerCase();
+   190→    return media.filter((m) => {
+   191→      if (typeFilter !== "all" && classifyAsset(m) !== typeFilter) return false;
+   192→      if (!q) return true;
+   193→      return (
+   194→        m.title.toLowerCase().includes(q) ||
+   195→        (m.fileName ?? "").toLowerCase().includes(q) ||
+   196→        m.alt?.toLowerCase().includes(q) ||
+   197→        m.tags?.some((t) => t.toLowerCase().includes(q))
+   198→      );
+   199→    });
+   200→  }, [media, query, typeFilter]);
+   201→
+   202→  function openDetail(m: MediaAsset) {
+   203→    setSelected(m);
+   204→    setDetailOpen(true);
+   205→  }
+   206→
+   207→  async function handleQuickCopyUrl(m: MediaAsset, e: React.MouseEvent) {
+   208→    e.stopPropagation();
+   209→    try {
+   210→      await copyToClipboard(m.url);
+   211→      toast.success("Reference URL copied to clipboard");
+   212→    } catch {
+   213→      toast.error("Couldn't copy — your browser blocked clipboard access");
+   214→    }
+   215→  }
+   216→
+   217→  async function handleQuickCopyMarkdown(m: MediaAsset, e: React.MouseEvent) {
+   218→    e.stopPropagation();
+   219→    const md = `![${m.alt || m.title}](${m.url})`;
+   220→    try {
+   221→      await copyToClipboard(md);
+   222→      toast.success("Markdown copied to clipboard");
+   223→    } catch {
+   224→      toast.error("Couldn't copy — your browser blocked clipboard access");
+   225→    }
+   226→  }
+   227→
+   228→  function requestDelete(m: MediaAsset) {
+   229→    setDeleteTarget(m);
+   230→  }
+   231→
+   232→  async function confirmDelete() {
+   233→    if (!deleteTarget) return;
+   234→    const id = deleteTarget.id;
+   235→    deleteMedia(id);
+   236→    if (uploadedIdsRef.current.has(id)) {
+   237→      try {
+   238→        await deleteMediaBlob(id);
+   239→      } catch {
+   240→        // best-effort
+   241→      }
+   242→      uploadedIdsRef.current.delete(id);
+   243→      setUploadedVersion((v) => v + 1);
+   244→    }
+   245→    if (selected?.id === id) {
+   246→      setSelected(null);
+   247→      setDetailOpen(false);
+   248→    }
+   249→    setDeleteTarget(null);
+   250→    toast.success("Media asset deleted");
+   251→  }
+   252→
+   253→  // Expose a hook so the danger-zone card can clear IndexedDB. Not
+   254→  // strictly required by the brief but makes the "reset only media"
+   255→  // path more robust when invoked from elsewhere.
+   256→  async function clearAllUploadedBlobs() {
+   257→    for (const id of Array.from(uploadedIdsRef.current)) {
+   258→      try {
+   259→        await deleteMediaBlob(id);
+   260→      } catch {
+   261→        // ignore
+   262→      }
+   263→    }
+   264→    uploadedIdsRef.current.clear();
+   265→    setUploadedVersion((v) => v + 1);
+   266→  }
+   267→  // Attach to window for cross-component access. Cleaner would be a
+   268→  // shared context but this keeps the surface area small.
+   269→  useEffect(() => {
+   270→    if (typeof window === "undefined") return;
+   271→    (window as unknown as { __techstarClearMediaBlobs?: () => Promise<void> }).__techstarClearMediaBlobs =
+   272→      clearAllUploadedBlobs;
+   273→    return () => {
+   274→      delete (window as unknown as { __techstarClearMediaBlobs?: () => Promise<void> }).__techstarClearMediaBlobs;
+   275→    };
+   276→  }, []);
+   277→
+   278→  void uploadedVersion; // re-render trigger; nothing else to render from it.
+   279→
+   280→  return (
+   281→    <div className="mx-auto max-w-6xl">
+   282→      <div className="mb-6">
+   283→        <div
+   284→          className="mb-1 flex items-center gap-2 text-[11px] uppercase tracking-wide"
+   285→          style={{ color: "var(--text-muted)" }}
+   286→        >
+   287→          <ImageIcon className="size-3.5" aria-hidden />
+   288→          Phase 4b · Media library
+   289→        </div>
+   290→        <h1
+   291→          className="font-display text-2xl font-semibold tracking-tight"
+   292→          style={{ color: "var(--text-primary)" }}
+   293→        >
+   294→          Media
+   295→        </h1>
+   296→        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+   297→          All assets used across the site. Uploads persist to browser
+   298→          IndexedDB and survive refresh — but they are <strong>not hosted</strong>{" "}
+   299→          and may be cleared when you clear browser data.
+   300→        </p>
+   301→      </div>
+   302→
+   303→      <div
+   304→        role="alert"
+   305→        className="mb-4 flex items-start gap-2 rounded-md border p-2.5 text-[11px] leading-relaxed"
+   306→        style={{
+   307→          borderColor: "var(--border-subtle)",
+   308→          backgroundColor: "var(--surface-2)",
+   309→          color: "var(--text-muted)",
+   310→        }}
+   311→      >
+   312→        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+   313→        <span>
+   314→          Browser-local storage — uploads are not hosted and may be
+   315→          cleared when you clear browser data. Not suitable for
+   316→          production.
+   317→        </span>
+   318→      </div>
+   319→
+   320→      <div className="mb-4 flex flex-wrap items-center gap-2">
+   321→        <div className="relative min-w-0 flex-1 sm:max-w-xs">
+   322→          <Search
+   323→            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2"
+   324→            style={{ color: "var(--text-muted)" }}
+   325→            aria-hidden
+   326→          />
+   327→          <Input
+   328→            value={query}
+   329→            onChange={(e) => setQuery(e.target.value)}
+   330→            placeholder="Search by title, filename, or alt…"
+   331→            className="h-9 pl-8 text-sm"
+   332→            aria-label="Search media"
+   333→          />
+   334→        </div>
+   335→        <Select
+   336→          value={typeFilter}
+   337→          onValueChange={(v) => setTypeFilter(v as TypeFilter)}
+   338→        >
+   339→          <SelectTrigger className="h-9 w-32 text-xs" aria-label="Filter by type">
+   340→            <SelectValue />
+   341→          </SelectTrigger>
+   342→          <SelectContent>
+   343→            <SelectItem value="all">All types</SelectItem>
+   344→            <SelectItem value="image">Images</SelectItem>
+   345→            <SelectItem value="video">Videos</SelectItem>
+   346→            <SelectItem value="embed">Embeds</SelectItem>
+   347→          </SelectContent>
+   348→        </Select>
+   349→        <div
+   350→          className="inline-flex items-center gap-0.5 rounded-md border p-0.5"
+   351→          style={{
+   352→            borderColor: "var(--border-subtle)",
+   353→            backgroundColor: "var(--surface-1)",
+   354→          }}
+   355→          role="group"
+   356→          aria-label="View mode"
+   357→        >
+   358→          <ViewToggle
+   359→            active={view === "grid"}
+   360→            onClick={() => setView("grid")}
+   361→            label="Grid view"
+   362→          >
+   363→            <LayoutGrid className="size-3.5" />
+   364→          </ViewToggle>
+   365→          <ViewToggle
+   366→            active={view === "list"}
+   367→            onClick={() => setView("list")}
+   368→            label="List view"
+   369→          >
+   370→            <ListIcon className="size-3.5" />
+   371→          </ViewToggle>
+   372→        </div>
+   373→        <Button onClick={() => setUploadOpen(true)} className="gap-1.5">
+   374→          <Upload className="size-4" />
+   375→          Upload
+   376→        </Button>
+   377→      </div>
+   378→
+   379→      {filtered.length === 0 ? (
+   380→        <Card>
+   381→          <CardContent className="p-10 text-center">
+   382→            <ImageIcon
+   383→              className="mx-auto size-8"
+   384→              style={{ color: "var(--text-muted)" }}
+   385→              aria-hidden
+   386→            />
+   387→            <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+   388→              No media matches your filters.
+   389→            </p>
+   390→          </CardContent>
+   391→        </Card>
+   392→      ) : view === "grid" ? (
+   393→        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+   394→          {filtered.map((m) => (
+   395→            <GridTile
+   396→              key={m.id}
+   397→              media={m}
+   398→              onClick={() => openDetail(m)}
+   399→              onCopyUrl={(e) => handleQuickCopyUrl(m, e)}
+   400→              onDelete={() => requestDelete(m)}
+   401→            />
+   402→          ))}
+   403→        </div>
+   404→      ) : (
+   405→        <Card>
+   406→          <CardContent className="p-0">
+   407→            <Table>
+   408→              <TableHeader>
+   409→                <TableRow>
+   410→                  <TableHead className="w-[60px]">Preview</TableHead>
+   411→                  <TableHead>Filename</TableHead>
+   412→                  <TableHead className="w-[80px]">Type</TableHead>
+   413→                  <TableHead className="w-[100px]">Dimensions</TableHead>
+   414→                  <TableHead>Alt text</TableHead>
+   415→                  <TableHead className="w-[120px]">Created</TableHead>
+   416→                  <TableHead className="w-[40px] text-right">Actions</TableHead>
+   417→                </TableRow>
+   418→              </TableHeader>
+   419→              <TableBody>
+   420→                {filtered.map((m) => (
+   421→                  <ListRow
+   422→                    key={m.id}
+   423→                    media={m}
+   424→                    onClick={() => openDetail(m)}
+   425→                    onCopyUrl={(e) => handleQuickCopyUrl(m, e)}
+   426→                    onCopyMarkdown={(e) => handleQuickCopyMarkdown(m, e)}
+   427→                    onDelete={() => requestDelete(m)}
+   428→                  />
+   429→                ))}
+   430→              </TableBody>
+   431→            </Table>
+   432→          </CardContent>
+   433→        </Card>
+   434→      )}
+   435→
+   436→      <MediaDetailDialog
+   437→        open={detailOpen}
+   438→        onOpenChange={(o) => {
+   439→          setDetailOpen(o);
+   440→          if (!o) setSelected(null);
+   441→        }}
+   442→        media={selected}
+   443→        onUpdate={(next) => {
+   444→          upsertMedia(next);
+   445→          setSelected(next);
+   446→        }}
+   447→        onDelete={(m) => {
+   448→          setDeleteTarget(m);
+   449→          setDetailOpen(false);
+   450→        }}
+   451→      />
+   452→
+   453→      <MediaUploadDialog
+   454→        open={uploadOpen}
+   455→        onOpenChange={setUploadOpen}
+   456→        onUploaded={(asset) => {
+   457→          uploadedIdsRef.current.add(asset.id);
+   458→          setUploadedVersion((v) => v + 1);
+   459→        }}
+   460→      />
+   461→
+   462→      <ConfirmDialog
+   463→        open={!!deleteTarget}
+   464→        onOpenChange={(o) => !o && setDeleteTarget(null)}
+   465→        title="Delete media asset?"
+   466→        description={
+   467→          deleteTarget
+   468→            ? `"${deleteTarget.title}" will be removed permanently. Any sections referencing it will show a broken image.`
+   469→            : ""
+   470→        }
+   471→        confirmLabel="Delete"
+   472→        variant="destructive"
+   473→        onConfirm={confirmDelete}
+   474→      />
+   475→    </div>
+   476→  );
+   477→}
+   478→
+   479→// ============================================================
+   480→// GRID TILE — hover overlay with quick actions
+   481→// ============================================================
+   482→function GridTile({
+   483→  media,
+   484→  onClick,
+   485→  onCopyUrl,
+   486→  onDelete,
+   487→}: {
+   488→  media: MediaAsset;
+   489→  onClick: () => void;
+   490→  onCopyUrl: (e: React.MouseEvent) => void;
+   491→  onDelete: () => void;
+   492→}) {
+   493→  return (
+   494→    <div
+   495→      className="group relative overflow-hidden rounded-md border text-left transition-all hover:border-[var(--accent-bright)]"
+   496→      style={{
+   497→        borderColor: "var(--border-subtle)",
+   498→        backgroundColor: "var(--surface-1)",
+   499→      }}
+   500→    >
+   501→      <button
+   502→        type="button"
+   503→        onClick={onClick}
+   504→        className="block w-full text-left"
+   505→        aria-label={`Open ${media.title}`}
+   506→      >
+   507→        <div
+   508→          className="relative aspect-[4/3] w-full overflow-hidden"
+   509→          style={{ backgroundColor: "var(--surface-2)" }}
+   510→        >
+   511→          <TilePreview media={media} className="h-full w-full" />
+   512→        </div>
+   513→        <div className="px-2 py-1.5">
+   514→          <p
+   515→            className="truncate text-xs font-medium"
+   516→            style={{ color: "var(--text-primary)" }}
+   517→            title={media.fileName ?? media.title}
+   518→          >
+   519→            {media.fileName ?? media.title}
+   520→          </p>
+   521→          <div className="mt-1 flex items-center gap-1">
+   522→            <TypeBadge type={classifyAsset(media)} />
+   523→            {!media.alt?.trim() ? (
+   524→              <span
+   525→                title="Alt text is empty — screen readers will not convey this image"
+   526→                className="inline-flex items-center"
+   527→                style={{ color: "var(--warning, #f59e0b)" }}
+   528→              >
+   529→                <AlertTriangle className="size-3" aria-hidden />
+   530→              </span>
+   531→            ) : null}
+   532→          </div>
+   533→        </div>
+   534→      </button>
+   535→
+   536→      {/* Hover overlay with quick actions */}
+   537→      <div
+   538→        className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+   539→        style={{ backgroundColor: "color-mix(in srgb, var(--bg-deep, #0a0f1f) 70%, transparent)" }}
+   540→        aria-hidden={false}
+   541→      >
+   542→        <OverlayButton
+   543→          label="Edit"
+   544→          onClick={(e) => {
+   545→            e.stopPropagation();
+   546→            onClick();
+   547→          }}
+   548→        >
+   549→          <Pencil className="size-3.5" />
+   550→        </OverlayButton>
+   551→        <OverlayButton label="Copy URL" onClick={onCopyUrl}>
+   552→          <Copy className="size-3.5" />
+   553→        </OverlayButton>
+   554→        <OverlayButton label="Delete" onClick={(e) => { e.stopPropagation(); onDelete(); }} destructive>
+   555→          <Trash2 className="size-3.5" />
+   556→        </OverlayButton>
+   557→      </div>
+   558→    </div>
+   559→  );
+   560→}
+   561→
+   562→function TilePreview({
+   563→  media,
+   564→  className,
+   565→}: {
+   566→  media: MediaAsset;
+   567→  className?: string;
+   568→}) {
+   569→  if (media.type === "image") {
+   570→    return (
+   571→      <img
+   572→        src={media.url}
+   573→        alt={media.alt}
+   574→        className={`${className ?? ""} object-cover transition-transform group-hover:scale-105`}
+   575→        loading="lazy"
+   576→      />
+   577→    );
+   578→  }
+   579→  if (media.type === "video") {
+   580→    return (
+   581→      <div
+   582→        className={`flex items-center justify-center ${className ?? ""}`}
+   583→        style={{ color: "var(--text-muted)" }}
+   584→      >
+   585→        <VideoIcon className="size-6" aria-hidden />
+   586→      </div>
+   587→    );
+   588→  }
+   589→  return (
+   590→    <div
+   591→      className={`flex items-center justify-center ${className ?? ""}`}
+   592→      style={{ color: "var(--text-muted)" }}
+   593→    >
+   594→      <EmbedIcon className="size-6" aria-hidden />
+   595→    </div>
+   596→  );
+   597→}
+   598→
+   599→function OverlayButton({
+   600→  label,
+   601→  onClick,
+   602→  destructive,
+   603→  children,
+   604→}: {
+   605→  label: string;
+   606→  onClick: (e: React.MouseEvent) => void;
+   607→  destructive?: boolean;
+   608→  children: React.ReactNode;
+   609→}) {
+   610→  return (
+   611→    <button
+   612→      type="button"
+   613→      onClick={onClick}
+   614→      aria-label={label}
+   615→      title={label}
+   616→      className="pointer-events-auto flex size-8 items-center justify-center rounded-md border text-white transition-colors hover:bg-white/15"
+   617→      style={{
+   618→        borderColor: "color-mix(in srgb, white 30%, transparent)",
+   619→        color: destructive ? "#fca5a5" : "white",
+   620→      }}
+   621→    >
+   622→      {children}
+   623→    </button>
+   624→  );
+   625→}
+   626→
+   627→function TypeBadge({ type }: { type: TypeFilter }) {
+   628→  const label = type === "all" ? "—" : type[0]?.toUpperCase() + type.slice(1);
+   629→  return (
+   630→    <Badge
+   631→      variant="outline"
+   632→      className="px-1.5 py-0 text-[9px] uppercase tracking-wide"
+   633→      style={{
+   634→        color: "var(--text-muted)",
+   635→        borderColor: "var(--border-subtle)",
+   636→      }}
+   637→    >
+   638→      {label}
+   639→    </Badge>
+   640→  );
+   641→}
+   642→
+   643→// ============================================================
+   644→// LIST ROW — table cells + actions dropdown menu
+   645→// ============================================================
+   646→function ListRow({
+   647→  media,
+   648→  onClick,
+   649→  onCopyUrl,
+   650→  onCopyMarkdown,
+   651→  onDelete,
+   652→}: {
+   653→  media: MediaAsset;
+   654→  onClick: () => void;
+   655→  onCopyUrl: (e: React.MouseEvent) => void;
+   656→  onCopyMarkdown: (e: React.MouseEvent) => void;
+   657→  onDelete: () => void;
+   658→}) {
+   659→  const altEmpty = !media.alt?.trim();
+   660→  return (
+   661→    <TableRow
+   662→      onClick={onClick}
+   663→      className="cursor-pointer"
+   664→      style={{ borderColor: "var(--border-subtle)" }}
+   665→    >
+   666→      <TableCell>
+   667→        <div
+   668→          className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded border"
+   669→          style={{
+   670→            borderColor: "var(--border-subtle)",
+   671→            backgroundColor: "var(--surface-2)",
+   672→          }}
+   673→        >
+   674→          <TilePreview media={media} className="h-full w-full" />
+   675→        </div>
+   676→      </TableCell>
+   677→      <TableCell className="max-w-[200px]">
+   678→        <p
+   679→          className="truncate text-xs font-medium"
+   680→          style={{ color: "var(--text-primary)" }}
+   681→          title={media.fileName ?? media.title}
+   682→        >
+   683→          {media.fileName ?? media.title}
+   684→        </p>
+   685→        {media.description ? (
+   686→          <p
+   687→            className="truncate text-[10px]"
+   688→            style={{ color: "var(--text-muted)" }}
+   689→          >
+   690→            {media.description}
+   691→          </p>
+   692→        ) : null}
+   693→      </TableCell>
+   694→      <TableCell>
+   695→        <TypeBadge type={classifyAsset(media)} />
+   696→      </TableCell>
+   697→      <TableCell className="text-[11px] font-mono" style={{ color: "var(--text-secondary)" }}>
+   698→        {media.width && media.height ? `${media.width} × ${media.height}` : "—"}
+   699→      </TableCell>
+   700→      <TableCell className="max-w-[220px]">
+   701→        {altEmpty ? (
+   702→          <span
+   703→            className="inline-flex items-center gap-1 text-[11px]"
+   704→            style={{ color: "var(--warning, #f59e0b)" }}
+   705→            title="Alt text is empty"
+   706→          >
+   707→            <AlertTriangle className="size-3" aria-hidden />
+   708→            <span className="italic" style={{ color: "var(--text-muted)" }}>
+   709→              empty
+   710→            </span>
+   711→          </span>
+   712→        ) : (
+   713→          <p
+   714→            className="truncate text-[11px]"
+   715→            style={{ color: "var(--text-secondary)" }}
+   716→            title={media.alt}
+   717→          >
+   718→            {media.alt}
+   719→          </p>
+   720→        )}
+   721→      </TableCell>
+   722→      <TableCell className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+   723→        {formatDate(media.createdAt, "short")}
+   724→      </TableCell>
+   725→      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   726→        <DropdownMenu>
+   727→          <DropdownMenuTrigger asChild>
+   728→            <Button
+   729→              variant="ghost"
+   730→              size="icon"
+   731→              className="size-7"
+   732→              aria-label="Open actions"
+   733→            >
+   734→              <MoreHorizontal className="size-3.5" />
+   735→            </Button>
+   736→          </DropdownMenuTrigger>
+   737→          <DropdownMenuContent align="end" className="w-44">
+   738→            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+   739→              Actions
+   740→            </DropdownMenuLabel>
+   741→            <DropdownMenuItem onClick={onClick} className="gap-2 text-xs">
+   742→              <Pencil className="size-3.5" />
+   743→              Edit
+   744→            </DropdownMenuItem>
+   745→            <DropdownMenuItem onClick={(e) => onCopyUrl(e as unknown as React.MouseEvent)} className="gap-2 text-xs">
+   746→              <Copy className="size-3.5" />
+   747→              Copy URL
+   748→            </DropdownMenuItem>
+   749→            <DropdownMenuItem onClick={(e) => onCopyMarkdown(e as unknown as React.MouseEvent)} className="gap-2 text-xs">
+   750→              <FileText className="size-3.5" />
+   751→              Copy markdown
+   752→            </DropdownMenuItem>
+   753→            <DropdownMenuItem
+   754→              onClick={() => window.open(media.url, "_blank", "noopener,noreferrer")}
+   755→              className="gap-2 text-xs"
+   756→            >
+   757→              <ExternalLink className="size-3.5" />
+   758→              Open in new tab
+   759→            </DropdownMenuItem>
+   760→            <DropdownMenuSeparator />
+   761→            <DropdownMenuItem
+   762→              onClick={onDelete}
+   763→              className="gap-2 text-xs text-[var(--danger,#ef4444)] focus:text-[var(--danger,#ef4444)]"
+   764→            >
+   765→              <Trash2 className="size-3.5" />
+   766→              Delete
+   767→            </DropdownMenuItem>
+   768→          </DropdownMenuContent>
+   769→        </DropdownMenu>
+   770→      </TableCell>
+   771→    </TableRow>
+   772→  );
+   773→}
+   774→
+   775→// ============================================================
+   776→// VIEW TOGGLE BUTTON
+   777→// ============================================================
+   778→function ViewToggle({
+   779→  active,
+   780→  onClick,
+   781→  label,
+   782→  children,
+   783→}: {
+   784→  active: boolean;
+   785→  onClick: () => void;
+   786→  label: string;
+   787→  children: React.ReactNode;
+   788→}) {
+   789→  return (
+   790→    <button
+   791→      type="button"
+   792→      onClick={onClick}
+   793→      aria-pressed={active}
+   794→      aria-label={label}
+   795→      className="flex size-7 items-center justify-center rounded transition-colors"
+   796→      style={{
+   797→        backgroundColor: active ? "var(--surface-2)" : "transparent",
+   798→        color: active ? "var(--text-primary)" : "var(--text-muted)",
+   799→      }}
+   800→    >
+   801→      {children}
+   802→    </button>
+   803→  );
+   804→}
+   805→
+   806→// Re-export so callers can compose.
+   807→export { copyToClipboard };
+   808→// Re-export StoredMediaBlob type so the store-side wrappers can keep
+   809→// using the same shape.
+   810→export type { StoredMediaBlob };
+   811→// Re-export MediaQuotaError so other components can isinstance-check.
+   812→export { MediaQuotaError, putMediaBlob, listMediaBlobs };
+   813→
