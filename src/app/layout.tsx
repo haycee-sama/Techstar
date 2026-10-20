@@ -68,8 +68,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#060A14" },
     { media: "(prefers-color-scheme: light)", color: "#F7F8FA" },
+    { media: "(prefers-color-scheme: dark)", color: "#060A14" },
   ],
 };
 
@@ -77,16 +77,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}
         style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
       >
         <ThemeProvider
           attribute="data-theme"
-          defaultTheme="dark"
-          themes={["dark", "light"]}
-          enableSystem={false}
+          defaultTheme="light"
+          themes={["light", "dark", "system"]}
+          enableSystem
           disableTransitionOnChange
         >
           <ContentStoreProvider>

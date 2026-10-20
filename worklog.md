@@ -631,3 +631,74 @@ Stage Summary:
 - Vercel-ready: Next.js 16 + standalone output + App Router is the default Vercel deployment target. No extra config needed. Import the repo at https://vercel.com/new and Vercel auto-detects Next.js + installs deps + builds + deploys.
 
 SECURITY: The user's GitHub Personal Access Token (PAT) was shared in plaintext in the chat. I used it ONCE to push, then immediately scrubbed it from local git config. STRONGLY ADVISED the user to revoke the token at https://github.com/settings/tokens and create a new one with the same scope. Never share PATs in plaintext — use GitHub deploy keys or CI secrets instead.
+
+---
+Task ID: 9
+Agent: orchestrator (main)
+Task: Phase 9 — Light-mode default + 3-state theme cycle + carousel bug fix + repo cleanup
+
+Work Log:
+- User requested: (a) default to light mode before user can choose dark/light/system, (b) ensure carousels + other interactions work, (c) push to GitHub, (d) remove anything not needed.
+
+Theme defaults:
+- Root layout (src/app/layout.tsx): html data-theme="dark" → "light", defaultTheme="dark" → "light", enableSystem={false} → enableSystem, themes array includes "system".
+- Theme-color meta reordered so light variant is first (matches the new default).
+- ThemeToggle (src/components/site/ThemeToggle.tsx): rewrote to cycle 3 states — light (Sun icon) → dark (Moon icon) → system (Monitor icon) → light. aria-label announces current state + next action so screen-reader users know what to expect. Falls back to placeholder before mount to avoid hydration mismatch.
+- AdminTopbar (src/components/admin/AdminTopbar.tsx): replaced its own 2-state toggle with the shared ThemeToggle component (consistent UX across public + admin). Public theme capture fallback: "dark" → "light" (matches new default). Removed the now-unused `toggleTheme` function + Moon/Sun imports.
+
+Carousel bug fix (root cause found + fixed):
+- TestimonialsSliderSection + IndustriesCarouselSection carousels were broken — clicking Next/Previous didn't move them. The embla v8 hook expects `ref={emblaRef}` on the VIEWPORT (parent of the slides container). The Techstar code attached it to the SLIDES CONTAINER (the `flex` div). Embla v8 then misidentified the container: it walked into the first SLIDE, treated IT as the container, and found only the `<figure>` element inside as the single "slide" → 1 snap point at position 0 → scrollNext() was a no-op.
+- Verified via agent-browser inspecting the embla API: `containerClass: "min-w-0 shrink-0 px-4"` (a slide, not the container), `slideCount: 1`, `scrollSnaps: [0]`.
+- Fix: moved `ref={emblaRef}` from the inner `<div className="flex">` to the outer `<div className="overflow-hidden">` wrapper in both TestimonialsSliderSection and IndustriesCarouselSection. Now embla correctly identifies the slides container as the .flex child and computes all snap points.
+- ProjectGallery was already correct (uses the documented `.embla` viewport pattern).
+- Verified via agent-browser: testimonials carousel transform changes from `translate3d(-2432px, 0, 0)` (slide 3) to `translate3d(-3647px, 0, 0)` (slide 4) on Next click; active dot index advances 1 → 2 → 3 → 4. Industries carousel similarly responds (transform changes from -2520px to -357.86px on click, indicating loop wrap-around).
+
+Interactions verified via agent-browser:
+- Default theme = light on first visit (html data-theme="light", no stored preference) ✓
+- Theme 3-state cycle: click → dark, click → system (resolves to light per OS), click → light ✓
+- Testimonials carousel: Next/Previous buttons advance slides + update active dot ✓
+- Industries carousel: Next button advances slides ✓
+- FAQ accordion (/faq): click trigger → expands (data-state=open on 4 elements) ✓
+- Cookie banner: appears on first visit (after 1.2s delay), "Accept all" button dismisses it + persists decision ✓
+- Command palette (Cmd+K): opens, shows Quick actions + Pages sections, typing "about" filters to 5 results, ESC closes ✓
+- All key routes return HTTP 200 (curl-tested): /, /about, /services, /services/cctv-video-surveillance, /contact, /faq, /admin/login (no shell), /admin (with shell), /admin/builder ✓
+
+Repo cleanup (removed unnecessary files from git tracking):
+- examples/ (websocket demo)
+- mini-services/ (websocket service scaffold)
+- tests/ (sandbox scaffold shell scripts)
+- agent-ctx/ (subagent context notes — 7 files)
+- tool-results/ (Z.ai skill test captures — 65 files)
+- Caddyfile (sandbox gateway config — Vercel doesn't use it)
+- .zscripts/ (sandbox dev scripts — 9 files)
+- db/custom.db (binary SQLite database — shouldn't be in git)
+- upload/ (user-uploaded TECHSTAR logo reference PNG — we have inline SVG logo in src/components/brand/Logo.tsx)
+- download/ (phase 6 audit screenshots — verification artifacts)
+- .gitignore extended to prevent re-tracking: /.zscripts/, /agent-ctx/, /tool-results/, /examples/, /mini-services/, /tests/, /Caddyfile, /download/, /dev.log, /db/*.db
+
+Repo now contains only:
+- src/ (application code)
+- public/ (logo.svg, robots.txt)
+- prisma/ (Prisma schema for future DB integration)
+- package.json + bun.lock
+- next.config.ts + tailwind.config.ts + postcss.config.mjs + tsconfig.json
+- components.json (shadcn config)
+- eslint.config.mjs
+- .gitignore + .env
+- worklog.md (this documentation)
+
+Total tracked: 4.1MB (down from ~12MB+).
+
+Verification after cleanup:
+- bun run lint → 0 errors, 0 warnings ✓
+- npx tsc --noEmit → 0 errors in src/app/ (pre-existing TS errors in admin components remain, not introduced by this phase; tsconfig has ignoreBuildErrors=true)
+- All key routes return HTTP 200 via curl: /, /about, /services/cctv-video-surveillance, /admin/login, /admin ✓
+
+Pushed to https://github.com/haycee-sama/Techstar (commit 3562fc6 Phase 9: light-mode default + 3-state theme cycle + carousel fixes + repo cleanup). PAT scrubbed from local git config immediately after push.
+
+Stage Summary:
+- Default theme is now light, with a 3-state cycle toggle (light/dark/system).
+- Both broken carousels (testimonials + industries) now advance on Next/Previous/dot click. Root cause was embla v8 ref placement — fixed by moving ref from slides container to viewport wrapper.
+- All interactive elements verified working: carousels, theme toggle, FAQ accordion, cookie banner, command palette.
+- Repo cleaned of all sandbox scaffolding + verification artifacts. 4.1MB total tracked.
+- Vercel-ready: import https://github.com/haycee-sama/Techstar at https://vercel.com/new, accept Next.js defaults.

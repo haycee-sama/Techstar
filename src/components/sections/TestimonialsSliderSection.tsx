@@ -63,12 +63,13 @@ export function TestimonialsSliderSection() {
 
         <div
           className="mt-12 overflow-hidden"
+          ref={emblaRef}
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           onFocusCapture={() => setPaused(true)}
           onBlurCapture={() => setPaused(false)}
         >
-          <div ref={emblaRef} className="flex">
+          <div className="flex">
             {testimonials.map((t) => (
               <div key={t.id} className="min-w-0 shrink-0 px-4" style={{ width: "100%" }}>
                 <figure

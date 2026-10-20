@@ -17,8 +17,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Keyboard, LogOut, Moon, Search, Sun, User } from "lucide-react";
+import { Keyboard, LogOut, Search, User } from "lucide-react";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/site/ThemeToggle";
 
 const ADMIN_THEME_KEY = "techstar:admin:theme";
 const PUBLIC_THEME_BACKUP_KEY = "techstar:public:theme-backup";
@@ -52,7 +53,7 @@ export function AdminTopbar() {
     } catch {
       // ignore
     }
-    if (!publicTheme) publicTheme = resolvedTheme ?? "dark";
+    if (!publicTheme) publicTheme = resolvedTheme ?? "light";
     window.localStorage.setItem(PUBLIC_THEME_BACKUP_KEY, publicTheme);
 
     // Apply the admin's preferred theme (default light on first visit).
@@ -66,7 +67,7 @@ export function AdminTopbar() {
     // Restore the public-site theme when leaving admin.
     return () => {
       try {
-        const restoreTo = window.localStorage.getItem(PUBLIC_THEME_BACKUP_KEY) ?? "dark";
+        const restoreTo = window.localStorage.getItem(PUBLIC_THEME_BACKUP_KEY) ?? "light";
         setTheme(restoreTo);
         window.localStorage.removeItem(PUBLIC_THEME_BACKUP_KEY);
       } catch {
@@ -74,12 +75,6 @@ export function AdminTopbar() {
       }
     };
   }, [setTheme, resolvedTheme]);
-
-  function toggleTheme() {
-    const next = resolvedTheme === "dark" ? "light" : "dark";
-    setTheme(next);
-    window.localStorage.setItem(ADMIN_THEME_KEY, next);
-  }
 
   function openCommand() {
     window.dispatchEvent(new CustomEvent("techstar:open-command"));
@@ -131,19 +126,7 @@ export function AdminTopbar() {
 
         <DemoChip />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-9"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} theme`}
-        >
-          {resolvedTheme === "dark" ? (
-            <Sun className="size-4" aria-hidden />
-          ) : (
-            <Moon className="size-4" aria-hidden />
-          )}
-        </Button>
+        <ThemeToggle />
 
         <NotificationsPanel />
 
@@ -196,14 +179,6 @@ export function AdminTopbar() {
               >
                 ⌘K
               </kbd>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
-              {resolvedTheme === "dark" ? (
-                <Sun className="size-4" />
-              ) : (
-                <Moon className="size-4" />
-              )}
-              Toggle theme
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="cursor-pointer text-[var(--danger)] focus:text-[var(--danger)]">

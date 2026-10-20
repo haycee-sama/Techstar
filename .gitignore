@@ -52,3 +52,22 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Sandbox + IDE artifacts (not part of Techstar product)
+/.zscripts/
+/agent-ctx/
+/tool-results/
+/examples/
+/mini-services/
+/tests/
+/Caddyfile
+/download/
+/dev.log
+/next-env.d.ts
+*.tsbuildinfo
+
+# Database
+/db/*.db
+/db/*.db-journal
+
+# OS files
+Thumbs.db

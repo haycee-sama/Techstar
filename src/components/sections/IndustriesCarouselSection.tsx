@@ -86,12 +86,13 @@ export function IndustriesCarouselSection() {
 
       <div
         className="mt-10 overflow-hidden"
+        ref={emblaRef}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onFocusCapture={() => setPaused(true)}
         onBlurCapture={() => setPaused(false)}
       >
-        <div ref={emblaRef} className="flex">
+        <div className="flex">
           {industries.map((industry, i) => {
             const Icon = pickIcon(industry.icon);
             return (
