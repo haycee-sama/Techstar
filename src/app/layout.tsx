@@ -4,6 +4,8 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ContentStoreProvider } from "@/lib/content-store";
+import { AppRouter } from "@/lib/router";
+import { HashRedirect } from "@/components/site/HashRedirect";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -88,8 +90,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ContentStoreProvider>
-            {children}
-            <Sonner position="bottom-right" />
+            <AppRouter>
+              <HashRedirect />
+              {children}
+              <Sonner position="bottom-right" />
+            </AppRouter>
           </ContentStoreProvider>
         </ThemeProvider>
       </body>

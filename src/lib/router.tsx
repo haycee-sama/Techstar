@@ -4,12 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   type AnchorHTMLAttributes,
   type ReactNode,
 } from "react";
+import { usePathname, useRouter as useNextRouter } from "next/navigation";
+import NextLink from "next/link";
 import { useGlobalSettings } from "@/lib/content-store";
 import { useRouteMetaEffect } from "@/lib/seo";
 
@@ -46,7 +46,7 @@ export const ROUTES = {
 } as const;
 
 export interface ParsedRoute {
-  /** Raw path without leading `#/`, e.g. `/services/cctv` */
+  /** Raw path without query, e.g. `/services/cctv` */
   path: string;
   /** Route name e.g. `home`, `serviceDetail` */
   name: keyof typeof ROUTES | "unknown";
@@ -67,17 +67,25 @@ export interface RouteMetaInfo {
 }
 
 // ============================================================
-// PARSING
+// PARSING — parses a pathname (not a hash) into a ParsedRoute.
+// Backwards-compat: strips any leading `#/` so old callers that still
+// pass hash-style strings don't break.
 // ============================================================
-function parseHash(hash: string): ParsedRoute {
-  let path = (hash || "").replace(/^#/, "");
-  // Strip the query string before segment parsing so slugs like
+function normalizePath(rawPath: string): string {
+  let path = (rawPath || "").trim();
+  // Strip leading hash if present (backwards-compat with old hash callers)
+  if (path.startsWith("#")) path = path.slice(1);
+  // Strip query string before segment parsing so slugs like
   // `/preview/home?preview=true` parse as slug="home".
   const queryIndex = path.indexOf("?");
   if (queryIndex >= 0) path = path.slice(0, queryIndex);
   if (!path.startsWith("/")) path = "/" + path;
-  if (path === "/") path = "/";
+  if (path === "") path = "/";
+  return path;
+}
 
+function parsePath(rawPath: string): ParsedRoute {
+  const path = normalizePath(rawPath);
   const segments = path.split("/").filter(Boolean);
   const params: Record<string, string> = {};
   let name: keyof typeof ROUTES | "unknown" = "unknown";
@@ -146,8 +154,10 @@ function parseHash(hash: string): ParsedRoute {
     } else if (segments.length === 2 && segments[1] === "settings") {
       name = "adminSettings";
     } else {
-      // Other admin routes (Phase 3b CRUD tables) are dispatched by
-      // the AdminShell, not the public ROUTES table.
+      // Other admin routes (CRUD tables, editors) are dispatched by
+      // their own Next.js App Router page.tsx files. The router still
+      // classifies them as "admin" so the layout knows to render the
+      // admin shell.
       name = "admin";
     }
   } else {
@@ -163,8 +173,9 @@ function parseHash(hash: string): ParsedRoute {
   };
 }
 
-export function parseRoute(hash: string): ParsedRoute {
-  return parseHash(hash);
+// Backwards-compat alias — old name was `parseHash`.
+export function parseRoute(pathOrHash: string): ParsedRoute {
+  return parsePath(pathOrHash);
 }
 
 // ============================================================
@@ -439,80 +450,70 @@ interface RouterContextValue {
 
 const RouterContext = createContext<RouterContextValue | null>(null);
 
-function readHash(): string {
-  if (typeof window === "undefined") return "#/";
-  const h = window.location.hash;
-  return h && h.length > 1 ? h : "#/";
-}
-
-export function HashRouter({ children }: { children: ReactNode }) {
+/**
+ * AppRouter — replaces the old HashRouter. Uses Next.js App Router
+ * (usePathname + useRouter from next/navigation) underneath while
+ * keeping the same context API (useRouter/useRoute/<Link>) that every
+ * existing page component already uses.
+ *
+ * Renders a RouterContext.Provider so all descendants can call
+ * useRouter() to read the current parsed route + meta + navigate fn.
+ */
+export function AppRouter({ children }: { children: ReactNode }) {
   const globalSettings = useGlobalSettings();
-  const [hash, setHash] = useState<string>(() =>
-    typeof window === "undefined" ? "#/" : readHash()
-  );
+  const nextRouter = useNextRouter();
+  const pathname = usePathname() || "/";
 
-  useEffect(() => {
-    const onChange = () => {
-      setHash(readHash());
-      // Scroll to top on route change unless suppressed
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    };
-    window.addEventListener("hashchange", onChange);
-    window.addEventListener("popstate", onChange);
-    // Ensure initial hash exists
-    if (!window.location.hash) {
-      window.history.replaceState(null, "", "#/");
-    }
-    return () => {
-      window.removeEventListener("hashchange", onChange);
-      window.removeEventListener("popstate", onChange);
-    };
-  }, []);
-
-  const parsed = useMemo(() => parseHash(hash), [hash]);
+  const parsed = useMemo(() => parsePath(pathname), [pathname]);
   const meta = useMemo(() => getRouteMeta(parsed), [parsed]);
 
+  // Keep document.title + meta tags in sync with the route.
   useRouteMetaEffect(meta);
 
   const navigate = useCallback(
     (to: string, opts: { replace?: boolean; scroll?: boolean } = {}) => {
-      const target = to.startsWith("#") ? to : `#${to.startsWith("/") ? to : "/" + to}`;
+      // Strip leading hash if a caller passed an old hash-style URL
+      // (backwards-compat with any unmigrated code paths).
+      let target = to.startsWith("#") ? to.slice(1) : to;
+      if (!target.startsWith("/")) target = "/" + target;
+      // Strip any trailing query from the to-be-pushed path; the
+      // query (if any) is part of `to` and will be preserved by
+      // next-router's URL parsing.
       if (opts.replace) {
-        window.history.replaceState(null, "", target);
-        setHash(target);
+        nextRouter.replace(target, { scroll: opts.scroll !== false });
       } else {
-        // pushState so we get a history entry without firing hashchange twice
-        if (target !== window.location.hash) {
-          window.history.pushState(null, "", target);
-          setHash(target);
-        }
-      }
-      if (opts.scroll !== false) {
-        window.scrollTo({ top: 0, behavior: "auto" });
+        nextRouter.push(target, { scroll: opts.scroll !== false });
       }
     },
-    []
+    [nextRouter]
   );
 
   const back = useCallback(() => {
-    window.history.back();
-  }, []);
+    nextRouter.back();
+  }, [nextRouter]);
 
   const value = useMemo<RouterContextValue>(
     () => ({ parsed, meta, navigate, back }),
     [parsed, meta, navigate, back]
   );
 
-  // Description fallback uses global settings
+  // Reference global settings to keep the provider reactive to brand
+  // SEO changes — actual application happens inside useRouteMetaEffect.
   const _desc = globalSettings?.defaultSeo?.description;
   void _desc;
 
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
 }
 
+/**
+ * Backwards-compat alias. Old import sites use `<HashRouter>` — keep
+ * the export name so they keep working. Internally it's now AppRouter.
+ */
+export const HashRouter = AppRouter;
+
 export function useRouter() {
   const ctx = useContext(RouterContext);
-  if (!ctx) throw new Error("useRouter must be used within <HashRouter>");
+  if (!ctx) throw new Error("useRouter must be used within <AppRouter>");
   return ctx;
 }
 
@@ -521,7 +522,11 @@ export function useRoute() {
 }
 
 // ============================================================
-// LINK COMPONENT
+// LINK COMPONENT — thin wrapper over next/link.
+// Accepts the same `to` prop the old Link did (with or without a
+// leading `#/`), normalises it to a clean pathname, and delegates
+// client-side navigation to next/link so we get prefetching, history
+// integration, scroll restoration, and back/forward for free.
 // ============================================================
 interface LinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> {
   to: string;
@@ -530,20 +535,15 @@ interface LinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"
 }
 
 export function Link({ to, replace, scroll = true, onClick, ...rest }: LinkProps) {
-  const { navigate } = useRouter();
-  const href = to.startsWith("#") ? to : `#${to.startsWith("/") ? to : "/" + to}`;
+  // Strip any hash prefix that might still be passed by old call sites.
+  let href = to.startsWith("#") ? to.slice(1) : to;
+  if (!href.startsWith("/")) href = "/" + href;
   return (
-    <a
+    <NextLink
       href={href}
-      onClick={(e) => {
-        // Allow modifier-click to open in new tab
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-          return;
-        }
-        e.preventDefault();
-        navigate(to, { replace, scroll });
-        onClick?.(e);
-      }}
+      replace={replace}
+      scroll={scroll}
+      onClick={onClick}
       {...rest}
     />
   );
