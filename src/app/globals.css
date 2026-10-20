@@ -80,6 +80,14 @@
   --radius: 0.625rem;
 
   /* shadcn semantic mapping (DARK defaults) */
+  /* NOTE: `--accent` is intentionally NOT redefined here. The Techstar
+     brand `--accent` token (defined above) IS the shadcn `--accent` token
+     — they share the same name. Writing `--accent: var(--accent)` would
+     create a self-referential circular definition that resolves to
+     "invalid at computed-value time", making every `var(--accent)` ref
+     (buttons, dropdowns, tabs, focus rings, etc.) fall back to
+     transparent / initial. Leave it unset so the brand value flows
+     through. */
   --background: var(--bg-navy);
   --foreground: var(--text-primary);
   --card: var(--surface-1);
@@ -92,7 +100,6 @@
   --secondary-foreground: var(--text-primary);
   --muted: var(--surface-1);
   --muted-foreground: var(--text-secondary);
-  --accent: var(--accent);
   --accent-foreground: #FFFFFF;
   --destructive: var(--danger);
   --border: var(--border-subtle);
@@ -153,7 +160,6 @@
   --secondary-foreground: var(--text-primary);
   --muted: var(--surface-2);
   --muted-foreground: var(--text-secondary);
-  --accent: var(--accent);
   --accent-foreground: #FFFFFF;
   --destructive: var(--danger);
   --border: var(--border-subtle);

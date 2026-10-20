@@ -66,8 +66,14 @@ export function AnnouncementStrip() {
           <div
             className="border-b"
             style={{
-              backgroundColor: "var(--bg-deep)",
-              borderColor: "var(--border-subtle)",
+              // Subtle accent-tinted bg so the strip reads as a "notice"
+              // element distinct from the page background and from the
+              // header below. The 6% accent tint is enough to be visible
+              // in both themes without competing with the brand strip
+              // pill or the page content.
+              backgroundColor:
+                "color-mix(in srgb, var(--accent) 6%, var(--bg-deep))",
+              borderColor: "var(--border-strong)",
             }}
           >
             <div className="mx-auto flex max-w-[1320px] items-center gap-3 px-4 sm:px-6 lg:px-8 py-2.5 text-sm">

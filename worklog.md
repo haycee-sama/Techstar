@@ -443,3 +443,66 @@ Outstanding issues:
 2. The "whileInView opacity:0" pattern (used in many sections across the site) means that content far below the fold starts at opacity 0 and only fades in when scrolled into view. This works for real users scrolling, but a full-page screenshot taken without prior scrolling shows blank sections below the fold (the IntersectionObserver doesn't fire for off-screen content during screenshot capture). This is a screenshot interaction quirk, NOT a runtime bug — confirmed by manually scrolling through the page and re-checking (article opacity goes 0 → 1). Decided NOT to refactor every `whileInView` to a `useInView + fallback timer` pattern because that would be a large rewrite for a non-user-facing screenshot quirk. Real users see all content when they scroll.
 3. Image assets use `placehold.co` URLs (Phase 1 decision to avoid broken images) — VLM perceived these as "grey placeholders with text overlays" giving a "work-in-progress" feel. This is intentional and matches the demo labeling throughout the site ("Sample content for proposal purposes").
 
+
+---
+Task ID: 7
+Agent: orchestrator (main)
+Task: Phase 7 — Announcement strip / header overlap fix + white-on-light hover/select bug
+
+Work Log:
+- User reported two specific issues:
+  (a) The announcement strip ("Notice — Schedule a Q1 security readiness consultation") was conflicting with the nav bar at the top.
+  (b) In light mode, when highlighting/hovering/selecting an option, white text on light background was hard to see, and some buttons on light background were white.
+
+- Investigated issue (a): Read `src/components/site/AnnouncementStrip.tsx` + `src/components/site/Header.tsx` + `src/app/page.tsx`. Found the root cause — Header was `position: fixed; top: 0; z-index: 40` while AnnouncementStrip was in normal document flow (no positioning). The fixed Header overlapped the AnnouncementStrip, hiding it.
+
+- Investigated issue (b): Read `src/components/ui/dropdown-menu.tsx` + `select.tsx` + `tabs.tsx` + `button.tsx`. Confirmed the shadcn hover/select states all use `focus:bg-accent focus:text-accent-foreground` — these depend on the `--accent` CSS variable resolving correctly. Ran `agent-browser eval` to compute actual colors and found:
+  - `--accent` resolved to EMPTY STRING on the `<html>` element in BOTH themes
+  - `--primary` (which is `var(--accent)`) also empty
+  - CTA "Request a consultation" button: inline `style={{ backgroundColor: "var(--accent)", color: "#fff" }}` → color #fff worked (literal value) but bg was `rgba(0,0,0,0)` transparent because `var(--accent)` resolved to nothing
+  - This is why hovering an option/CTA button in light mode showed white-on-transparent = invisible
+
+- ROOT CAUSE for issue (b): In `src/app/globals.css`, both the `:root` block (line 95) and the `[data-theme="light"]` block (line 156) contained the line:
+  ```css
+  --accent: var(--accent);
+  ```
+  This is a SELF-REFERENTIAL CSS variable definition. When the same variable name is set to a reference to itself, CSS treats it as "invalid at computed-value time" and the variable resolves to empty/initial. Any property using `var(--accent)` (buttons, dropdown hovers, select hovers, tab active states, focus rings, badges) then falls back to its initial/inherited value — `background-color` becomes `transparent`, etc.
+  The line was intended to map the shadcn `--accent` token to the Techstar brand `--accent` color, but since they share the SAME variable name, the explicit re-mapping creates a circular reference.
+
+Fixes applied:
+
+1. **`src/app/page.tsx`** — Wrapped AnnouncementStrip + Header in a single shared fixed-position container:
+   ```tsx
+   <div className="fixed inset-x-0 top-0 z-40 flex flex-col">
+     <AnnouncementStrip />
+     <Header />
+   </div>
+   ```
+   Now the announcement sits above the header inside the same fixed stack — no overlap, no z-index war.
+
+2. **`src/components/site/Header.tsx`** — Removed `fixed inset-x-0 top-0 z-40` from the header element itself (the parent container is fixed now). Also reverted my Phase 6 "overlay mode forces white text in both themes" logic — that was wrong because the hero section's `backgroundColor: var(--bg-deep)` is theme-aware (deep navy in dark mode, off-white `#F4F6FA` in light mode). So the header overlay text must ALSO be theme-aware (`--text-secondary` = light gray in dark mode, dark gray `#2E3548` in light mode — both pass WCAG AA against the hero bg).
+
+3. **`src/components/site/ThemeToggle.tsx`** — Removed the `forceOverlayColor` prop's white-icon override (kept the prop in the public API for stability but it's a no-op now). The icon color uses `var(--text-secondary)` always — theme-aware and readable in both modes.
+
+4. **`src/components/site/AnnouncementStrip.tsx`** — Strengthened the visual demarcation:
+   - `backgroundColor`: was `var(--bg-deep)` → now `color-mix(in srgb, var(--accent) 6%, var(--bg-deep))` — subtle accent tint so the strip reads as a "notice" element, distinct from the page bg.
+   - `borderColor`: was `var(--border-subtle)` → now `var(--border-strong)` — clearly visible bottom border separating announcement from nav bar below.
+
+5. **`src/app/globals.css`** — Removed the self-referential `--accent: var(--accent);` line from BOTH `:root` (dark) and `[data-theme="light"]` blocks. Added an inline comment explaining why this line must NOT be re-added. The Techstar brand `--accent` token (defined earlier in each block as `#3B82F6` dark / `#2563EB` light) now flows through naturally to the shadcn `--accent` token (since they share the same variable name). All components using `var(--accent)`, `bg-accent`, `text-accent-foreground`, etc. now resolve correctly.
+
+Verification (re-run via agent-browser after fixes):
+- **Light mode top of home**: announcement strip visible at very top with subtle accent tint + strong border below; nav bar below with dark-gray nav links on light hero bg; "Request a consultation" CTA button shows BLUE bg + WHITE text (was transparent + white before the fix); "Notice" pill shows light-blue bg + blue text. VLM confirmed all elements clearly readable, no white-on-light, no overlap.
+- **Dark mode top of home**: announcement strip visible at top; nav links light-gray on dark navy hero; CTA blue + white. VLM confirmed.
+- **Computed-color verification**:
+  - Light: `--accent` = `#2563EB`, `--bg-deep` = `#F4F6FA`, CTA bg = `rgb(37, 99, 235)` (#2563EB), CTA text = `rgb(255, 255, 255)` (white), nav link = `rgb(46, 53, 72)` (#2E3548 dark gray), announcement pill bg = `color(srgb 0.145 0.388 0.922 / 0.18)` (accent at 18% opacity), announcement pill text = `rgb(29, 78, 216)` (#1D4ED8 = `--accent-bright` light), announcement border-bottom = `rgba(10, 15, 31, 0.24)` (`--border-strong` light).
+  - Dark: `--accent` = `#3B82F6`, CTA bg = `rgb(59, 130, 246)` (#3B82F6), CTA text = `rgb(255, 255, 255)`.
+- **Contact page in light mode** (verified earlier): Select dropdown panel = white bg + dark text; hovered option = bright blue bg + white text (high contrast); trigger readable.
+- **`bun run lint`** → 0 errors, 0 warnings ✓
+
+Stage Summary:
+- Announcement strip + header overlap: FIXED via shared fixed-position container.
+- White-on-light hover/select issue: FIXED by removing the self-referential `--accent: var(--accent);` line that was making `--accent` resolve to invalid/empty in both themes. This was the actual root cause of all "white text on light background" issues — every `var(--accent)` reference (buttons, dropdown hovers, select hovers, tab active states, focus rings, badges, the CTA button bg) was silently resolving to transparent.
+- The Phase 6 "force white in overlay mode" was a misdiagnosis — the hero isn't dark in light mode (it's `#F4F6FA` off-white). Reverted that logic so overlay text is theme-aware.
+- Announcement strip now has a subtle accent-tinted bg + strong border for clear demarcation from the nav bar below.
+- All VLM audits confirm no white-on-light invisible elements remain in either theme.
+

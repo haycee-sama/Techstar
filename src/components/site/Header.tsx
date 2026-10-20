@@ -40,30 +40,29 @@ export function Header() {
   }, []);
 
   const onHome = parsed.name === "home";
-  // When transparent-over-hero, the header sits over a dark cinematic
-  // image in BOTH themes. Force white text/icons in that case so light
-  // theme doesn't render dark navy text on a dark photo (invisible).
+  // When transparent-over-hero (onHome && !scrolled), the header overlays
+  // the hero section. The hero section's `backgroundColor` is `var(--bg-deep)`
+  // which is theme-aware — deep navy in dark mode, off-white in light mode.
+  // So overlay text uses the theme-aware `--text-secondary` / `--accent-bright`
+  // tokens, NOT a forced white. (The original `--text-secondary` value is
+  // already correct: light gray on dark navy in dark mode, dark gray on
+  // off-white in light mode — both pass WCAG AA.)
   const overlayMode = onHome && !scrolled;
 
-  // Pick a color triple based on overlay vs solid state.
-  const navText = overlayMode
-    ? "var(--text-on-dark-overlay-secondary)"
-    : "var(--text-secondary)";
-  const navTextHover = overlayMode
-    ? "var(--text-on-dark-overlay)"
-    : "var(--accent-bright)";
-  const navTextActive = overlayMode
-    ? "var(--text-on-dark-overlay)"
-    : "var(--accent-bright)";
-  const iconColor = overlayMode
-    ? "var(--text-on-dark-overlay-secondary)"
-    : "var(--text-secondary)";
+  // In overlay mode the header has no background, so we still want the
+  // theme-aware text color. In solid mode, same colors work because the
+  // solid header bg is `var(--bg-navy)` which is the same hue family as
+  // the hero bg.
+  const navText = "var(--text-secondary)";
+  const navTextHover = "var(--accent-bright)";
+  const navTextActive = "var(--accent-bright)";
+  const iconColor = "var(--text-secondary)";
 
   return (
     <>
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-40 transition-colors duration-300",
+          "transition-colors duration-300",
           overlayMode ? "bg-transparent" : "backdrop-blur-md border-b"
         )}
         style={{

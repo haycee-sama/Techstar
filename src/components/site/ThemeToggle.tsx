@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 interface ThemeToggleProps {
   className?: string;
   /**
-   * When true, the toggle sits over a dark cinematic hero image in BOTH
-   * themes — force the icon to a near-white color so it stays visible
-   * in light mode too (otherwise dark navy icon on dark photo = invisible).
+   * Reserved for future use — kept in the public API so existing call
+   * sites don't break. The icon color is now always theme-aware via
+   * `--text-secondary` (which is light gray in dark mode, dark gray
+   * in light mode — both pass WCAG AA against the hero / page bg).
    */
   forceOverlayColor?: boolean;
 }
@@ -23,10 +24,7 @@ export function ThemeToggle({ className, forceOverlayColor = false }: ThemeToggl
   useEffect(() => setMounted(true), []);
 
   const current = mounted ? resolvedTheme || theme : "dark";
-
-  const iconColor = forceOverlayColor
-    ? "var(--text-on-dark-overlay-secondary)"
-    : "var(--text-secondary)";
+  void forceOverlayColor; // no-op; kept for API stability.
 
   return (
     <Button
@@ -35,7 +33,7 @@ export function ThemeToggle({ className, forceOverlayColor = false }: ThemeToggl
       aria-label={`Switch to ${current === "dark" ? "light" : "dark"} theme`}
       onClick={() => setTheme(current === "dark" ? "light" : "dark")}
       className={cn(className)}
-      style={{ color: iconColor }}
+      style={{ color: "var(--text-secondary)" }}
     >
       {mounted ? (
         current === "dark" ? (

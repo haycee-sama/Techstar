@@ -104,8 +104,17 @@ function AppShell() {
   return (
     <div className="app-shell">
       <ScrollProgress />
-      <AnnouncementStrip />
-      <Header />
+      {/* Wrap announcement strip + header in a single fixed-position top
+          stack so they don't conflict. Previously the Header was
+          `position: fixed` while the AnnouncementStrip was in normal
+          flow — the fixed Header overlapped the announcement. Now the
+          shared container is fixed at top:0; the announcement sits
+          above the header inside it; when dismissed the announcement
+          height collapses to 0 and only the header remains. */}
+      <div className="fixed inset-x-0 top-0 z-40 flex flex-col">
+        <AnnouncementStrip />
+        <Header />
+      </div>
       <main id="main" className="flex-1">
         <RouteRenderer />
       </main>
