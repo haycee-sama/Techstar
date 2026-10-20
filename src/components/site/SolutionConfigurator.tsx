@@ -114,7 +114,7 @@ export function SolutionConfigurator({ onConfigure }: SolutionConfiguratorProps)
     const bundle: Partial<InquiryFormValues> = {
       serviceSlug: recommendedBundle.services[0]?.slug,
       projectType: "New deployment",
-      message: `Industry: ${recommendedBundle.industry.name} (${recommendedBundle.industry.tagline}). Recommended bundle: ${recommendedBundle.services.map((s) => s.title).join(", ")}. Company size: ${state.companySize}. Please tell us how to bring this bundle to our facility.`,
+      message: `Industry: ${recommendedBundle.industry.name} (${recommendedBundle.industry.tagline}). Recommended bundle: ${recommendedBundle.services.map((s) => s?.title).filter(Boolean).join(", ")}. Company size: ${state.companySize}. Please tell us how to bring this bundle to our facility.`,
     };
     onConfigure(bundle);
     toast.success("Bundle prefilled in the consultation wizard below.", {
@@ -349,7 +349,7 @@ export function SolutionConfigurator({ onConfigure }: SolutionConfiguratorProps)
               <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {recommendedBundle.services.map((s, i) => (
                   <div
-                    key={s.slug}
+                    key={s?.slug ?? i}
                     className="flex items-center gap-3 rounded-lg border p-3"
                     style={{
                       borderColor: "var(--border-subtle)",
@@ -368,14 +368,14 @@ export function SolutionConfigurator({ onConfigure }: SolutionConfiguratorProps)
                     </span>
                     <div className="flex-1">
                       <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                        {s.title}
+                        {s?.title}
                       </div>
                       <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                        {s.tagline}
+                        {s?.tagline}
                       </div>
                     </div>
                     <Link
-                      to={`/services/${s.slug}`}
+                      to={`/services/${s?.slug ?? ""}`}
                       className="text-xs font-medium"
                       style={{ color: "var(--accent-bright)" }}
                     >

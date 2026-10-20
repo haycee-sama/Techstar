@@ -110,10 +110,11 @@ function StatCard({ stat, index, reduce }: { stat: StatSpec; index: number; redu
       </div>
       {stat.illustrative && (
         <span
-          className="mt-3 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] uppercase tracking-widest"
+          className="mt-3 inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest"
           style={{
-            backgroundColor: "color-mix(in srgb, var(--warning) 18%, transparent)",
-            color: "var(--warning)",
+            backgroundColor: "color-mix(in srgb, var(--accent) 12%, transparent)",
+            borderColor: "var(--border-strong)",
+            color: "var(--accent-bright)",
           }}
         >
           Illustrative

@@ -40,20 +40,37 @@ export function Header() {
   }, []);
 
   const onHome = parsed.name === "home";
+  // When transparent-over-hero, the header sits over a dark cinematic
+  // image in BOTH themes. Force white text/icons in that case so light
+  // theme doesn't render dark navy text on a dark photo (invisible).
+  const overlayMode = onHome && !scrolled;
+
+  // Pick a color triple based on overlay vs solid state.
+  const navText = overlayMode
+    ? "var(--text-on-dark-overlay-secondary)"
+    : "var(--text-secondary)";
+  const navTextHover = overlayMode
+    ? "var(--text-on-dark-overlay)"
+    : "var(--accent-bright)";
+  const navTextActive = overlayMode
+    ? "var(--text-on-dark-overlay)"
+    : "var(--accent-bright)";
+  const iconColor = overlayMode
+    ? "var(--text-on-dark-overlay-secondary)"
+    : "var(--text-secondary)";
 
   return (
     <>
       <header
         className={cn(
           "fixed inset-x-0 top-0 z-40 transition-colors duration-300",
-          scrolled || !onHome
-            ? "backdrop-blur-md border-b"
-            : "bg-transparent"
+          overlayMode ? "bg-transparent" : "backdrop-blur-md border-b"
         )}
         style={{
-          backgroundColor:
-            scrolled || !onHome ? "color-mix(in srgb, var(--bg-navy) 78%, transparent)" : "transparent",
-          borderColor: "var(--border-subtle)",
+          backgroundColor: overlayMode
+            ? "transparent"
+            : "color-mix(in srgb, var(--bg-navy) 78%, transparent)",
+          borderColor: overlayMode ? "transparent" : "var(--border-subtle)",
         }}
         role="banner"
       >
@@ -77,22 +94,33 @@ export function Header() {
                 >
                   <Link
                     to={item.href}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      "hover:text-[var(--accent-bright)]",
-                      isActiveTopLevel(parsed.path, item.href)
-                        ? "text-[var(--accent-bright)]"
-                        : "text-[var(--text-secondary)]"
-                    )}
+                    className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      color: isActiveTopLevel(parsed.path, item.href)
+                        ? navTextActive
+                        : navText,
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.color = navTextHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.color =
+                        isActiveTopLevel(parsed.path, item.href)
+                          ? navTextActive
+                          : navText;
+                    }}
                     onFocus={() => item.children && setOpenMenu(item.label)}
                   >
                     {item.label}
                     {item.children && (
                       <ChevronRight
-                        className={cn(
-                          "size-3.5 rotate-90 transition-transform",
-                          openMenu === item.label && "rotate-180"
-                        )}
+                        className="size-3.5 rotate-90 transition-transform"
+                        style={{
+                          transform: openMenu === item.label ? "rotate(180deg)" : "rotate(90deg)",
+                          color: isActiveTopLevel(parsed.path, item.href)
+                            ? navTextActive
+                            : navText,
+                        }}
                         aria-hidden
                       />
                     )}
@@ -118,10 +146,11 @@ export function Header() {
                 window.dispatchEvent(new CustomEvent("techstar:open-command"));
               }}
               className="hidden sm:inline-flex"
+              style={{ color: iconColor }}
             >
               <Search className="size-4" aria-hidden />
             </Button>
-            <ThemeToggle />
+            <ThemeToggle forceOverlayColor={overlayMode} />
             <Button
               asChild
               size="sm"
@@ -136,6 +165,7 @@ export function Header() {
                 size="icon"
                 aria-label="Open menu"
                 onClick={() => setMobileOpen(true)}
+                style={{ color: iconColor }}
               >
                 <Menu className="size-5" aria-hidden />
               </Button>

@@ -76,11 +76,11 @@ export const inquirySchema = z.object({
     .string()
     .min(30, "Please tell us a bit more — at least 30 characters.")
     .max(4000, "Please keep your description under 4,000 characters."),
-  consent: z.literal(true, {
-    errorMap: () => ({
+  consent: z
+    .boolean()
+    .refine((v) => v === true, {
       message: "Please consent to being contacted about your inquiry.",
     }),
-  }),
 });
 
 export type InquiryFormValues = z.infer<typeof inquirySchema>;

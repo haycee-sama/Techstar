@@ -45,18 +45,33 @@
   --bg-graphite: #141923;
   --surface-1: #11182A;
   --surface-2: #18203A;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
 
   /* Text */
   --text-primary: #F4F5F7;
-  --text-secondary: #A8B0C2;
-  --text-muted: #6B7390;
+  --text-secondary: #B8C0D0;
+  --text-muted: #8A92A8;
+
+  /* Always-white text — for elements that overlay dark imagery in
+     BOTH themes (header transparent-over-hero, hero captions, image
+     overlays). Prevents dark-mode→light-mode switch from making
+     overlay text invisible on dark hero photos. */
+  --text-on-dark-overlay: #FFFFFF;
+  --text-on-dark-overlay-secondary: rgba(255, 255, 255, 0.78);
+  --text-on-dark-overlay-muted: rgba(255, 255, 255, 0.62);
 
   /* Accents */
   --accent: #3B82F6;
   --accent-bright: #60A5FA;
   --accent-cyan: #22D3EE;
+  /* Accessible-on-white text variant of the same brand hue — used for
+     small text/links sitting on white in light mode. WCAG AA against
+     #FFFFFF: #1D4ED8 ≈ 6.6:1, #0E7C9A ≈ 4.7:1. */
+  --accent-text: #1D4ED8;
+  --accent-cyan-text: #0E7C9A;
+
+  /* Status (allowed by brief, used for content state feedback) */
   --success: #10B981;
   --warning: #F59E0B;
   --danger: #EF4444;
@@ -107,16 +122,21 @@
   --bg-graphite: #FFFFFF;
   --surface-1: #FFFFFF;
   --surface-2: #EEF1F6;
-  --border-subtle: rgba(10, 15, 31, 0.10);
-  --border-strong: rgba(10, 15, 31, 0.20);
+  --border-subtle: rgba(10, 15, 31, 0.14);
+  --border-strong: rgba(10, 15, 31, 0.24);
 
   --text-primary: #0A0F1F;
-  --text-secondary: #3A4256;
-  --text-muted: #6B7390;
+  --text-secondary: #2E3548;
+  --text-muted: #5A6378;
 
+  /* In light mode, the same on-dark-overlay tokens still mean "white
+     text over dark imagery" — the hero photos remain dark in both
+     themes, so overlay text must stay white. */
   --accent: #2563EB;
   --accent-bright: #1D4ED8;
   --accent-cyan: #0891B2;
+  --accent-text: #1D4ED8;
+  --accent-cyan-text: #0E7C9A;
   --success: #059669;
   --warning: #D97706;
   --danger: #DC2626;

@@ -107,10 +107,12 @@ export function TestimonialsSliderSection() {
                       </div>
                     </div>
                     <span
-                      className="rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-widest"
+                      className="rounded-full border px-2.5 py-0.5 text-[10px] uppercase tracking-widest"
                       style={{
-                        backgroundColor: "color-mix(in srgb, var(--warning) 18%, transparent)",
-                        color: "var(--warning)",
+                        backgroundColor:
+                          "color-mix(in srgb, var(--accent) 14%, transparent)",
+                        borderColor: "var(--border-strong)",
+                        color: "var(--accent-bright)",
                       }}
                     >
                       Illustrative

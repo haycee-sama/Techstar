@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, ChevronRight } from "lucide-react";
-import { useForm, FormProvider, useWatch } from "react-hook-form";
+import { useForm, FormProvider, useWatch, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -375,7 +375,7 @@ export function ConsultationWizard({ initial, onSubmitted }: ConsultationWizardP
 function Step1({
   form,
 }: {
-  form: ReturnType<typeof useForm<InquiryFormValues>>;
+  form: UseFormReturn<InquiryFormValues>;
 }) {
   return (
     <div className="space-y-5">
@@ -436,7 +436,7 @@ function Step2({
   form,
   services,
 }: {
-  form: ReturnType<typeof useForm<InquiryFormValues>>;
+  form: UseFormReturn<InquiryFormValues>;
   services: ReturnType<typeof useServices>;
 }) {
   const serviceSlug = useWatch({ control: form.control, name: "serviceSlug" });
@@ -539,7 +539,7 @@ function Step2({
 function Step3({
   form,
 }: {
-  form: ReturnType<typeof useForm<InquiryFormValues>>;
+  form: UseFormReturn<InquiryFormValues>;
 }) {
   const message = useWatch({ control: form.control, name: "message" }) as string;
   return (
@@ -589,7 +589,7 @@ function Step4({
   values,
   services,
 }: {
-  form: ReturnType<typeof useForm<InquiryFormValues>>;
+  form: UseFormReturn<InquiryFormValues>;
   values: InquiryFormValues;
   services: ReturnType<typeof useServices>;
 }) {

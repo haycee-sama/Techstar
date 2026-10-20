@@ -360,3 +360,86 @@ Stage Summary:
 - Sticky footer + responsive + reduced-motion all implemented (per Phase 1+ subagent verifications).
 - Sandbox memory constraint (4GB / no swap) is a known environmental issue, NOT a code issue. The dev server (whether Turbopack or webpack) uses ~2.3GB; running agent-browser's Chrome (~2.5GB) alongside it OOM-kills one of them. The fix is to kill chrome between sessions. When the user opens the preview URL, the system auto-starts the dev server on first request.
 - Project ready for delivery.
+
+---
+Task ID: 6
+Agent: orchestrator (main)
+Task: Phase 6 — Brand-consistent polish + light/dark mode audit + QA
+
+Work Log:
+- Read `/home/z/my-project/src/app/globals.css` to understand existing theme tokens. Confirmed the project already had a well-structured token system: `:root` (dark) + `[data-theme="light"]` overrides, with shadcn semantic mapping (`--background`, `--card`, `--popover`, `--primary`, etc.) feeding `@theme inline` for Tailwind 4.
+- Ran `grep` across `src/` for hardcoded colors: found 71 occurrences of `text-white|bg-white|text-black|bg-black|text-blue-[0-9]|text-cyan-[0-9]|text-gray-[0-9]|bg-gray-[0-9]|...` across 44 files. Sampled and confirmed MOST are correct (paired with `var(--accent)` backgrounds or using `dark:` variants on shadcn defaults). The truly problematic patterns were limited.
+- Sampled inline-style hex colors (58 occurrences across 33 files): confirmed the dominant pattern is `style={{ backgroundColor: "var(--accent)", color: "#fff" }}` — white text on accent bg, which is correct in BOTH themes (accent stays blue in both, white text on blue is accessible).
+- Captured screenshots of the home page (dark + light), admin dashboard (dark + light), WYSIWYG builder (dark + light), page editor (light), contact page (light), services page (light) via `agent-browser` against the preview URL. Submitted each to `z-ai vision` (VLM) for audit.
+- VLM-identified issues (Phase 6 audit round 1):
+  - Dark home: footer copyright text faint, "Industries served" labels faint, "The Model" diagram lines/labels hard to read, dividers almost invisible, cookie modal "Reject non-essential" button low contrast, testimonial "ILLUSTRATIVE" badge perceived as off-brand amber/tan.
+  - Light home: nav links "extremely faint" (root cause: header transparent-over-hero used `var(--text-secondary)` = dark navy on dark hero = invisible in light mode), eyebrow labels + body copy + footer links too light, section dividers nearly invisible.
+- VLM-identified admin issues: NONE — both admin dashboard + WYSIWYG builder + page editor verified clean in both themes.
+
+Fixes applied:
+
+1. **Token-level improvements in `src/app/globals.css`**:
+   - Dark theme: `--text-secondary` `#A8B0C2` → `#B8C0D0` (brighter for better contrast on dark navy).
+   - Dark theme: `--text-muted` `#6B7390` → `#8A92A8` (significantly brighter).
+   - Dark theme: `--border-subtle` 0.08 → 0.12, `--border-strong` 0.18 → 0.22 (more visible dividers).
+   - Light theme: `--text-secondary` `#3A4256` → `#2E3548` (darker for better contrast on white).
+   - Light theme: `--text-muted` `#6B7390` → `#5A6378` (darker, was identical to dark mode).
+   - Light theme: `--border-subtle` 0.10 → 0.14, `--border-strong` 0.20 → 0.24.
+   - NEW tokens: `--text-on-dark-overlay` (#FFFFFF in both themes), `--text-on-dark-overlay-secondary` (78% white), `--text-on-dark-overlay-muted` (62% white) — for elements that overlay dark imagery in BOTH themes (header transparent-over-hero, hero captions, image overlays).
+   - NEW tokens: `--accent-text` (#1D4ED8 dark, #1D4ED8 light), `--accent-cyan-text` (#0E7C9A) — accessible-on-white variants of the brand hue for small text/links (preserves `--accent-bright` for large graphics/decorative).
+   - Verified contrast: `--text-secondary` on `--bg-navy` is now ~9:1 (dark) and ~10:1 (light). `--text-muted` on `--bg-navy` is ~5.5:1 (dark) and ~6.5:1 (light) — both pass WCAG 2.2 AA for normal text.
+
+2. **Header overlay mode** (`src/components/site/Header.tsx`):
+   - Added `overlayMode = onHome && !scrolled` flag. When true (transparent header over hero), force nav links + theme toggle + search + hamburger to use `var(--text-on-dark-overlay-secondary)` (78% white) in BOTH themes — because the hero image is dark in both themes. When scrolled/solid, switch to theme-aware `var(--text-secondary)`.
+   - Mouse-enter/leave handlers swap to `navTextHover` (full white in overlay, accent-blue in solid).
+   - Active nav state uses `navTextActive` (full white in overlay, accent-blue in solid).
+   - Border + bg transparent in overlay, solid `var(--bg-navy)` 78% + border-subtle when scrolled.
+
+3. **ThemeToggle** (`src/components/site/ThemeToggle.tsx`):
+   - Added `forceOverlayColor?: boolean` prop. When true, icon color uses `var(--text-on-dark-overlay-secondary)` (white) instead of `var(--text-secondary)` — so the sun/moon icon stays visible over the dark hero in light mode.
+
+4. **"Illustrative" badge recoloring** (off-brand amber → brand blue):
+   - `src/components/sections/TestimonialsSliderSection.tsx`: changed testimonial "Illustrative" badge from `bg: warning 18%, color: warning` (amber/tan) to `bg: accent 14%, border: border-strong, color: accent-bright` (brand blue) with a 1px border.
+   - `src/components/sections/CapabilitiesStatsSection.tsx`: same recoloring for the stats "Illustrative" chip.
+
+5. **Infrastructure diagram line strengthening** (`src/components/sections/InfrastructureDiagramSection.tsx`):
+   - Crosshair axis lines: `var(--border-subtle)` → `var(--border-strong)` (now clearly visible in both themes).
+
+6. **Pre-existing TS errors fixed**:
+   - `src/components/site/SolutionConfigurator.tsx`: 5 instances of `s.title` / `s.slug` / `s.tagline` where `s` was possibly undefined (per strict mode) — added optional chaining `s?.title`, `s?.slug ?? i`, `s?.tagline`, `/services/${s?.slug ?? ""}`.
+   - `src/lib/inquiry-schema.ts`: `z.literal(true, { errorMap: () => ({ message: "..." }) })` was failing Zod v4 API (no `errorMap` property). Changed to `z.boolean().refine(v => v === true, { message: "..." })` which is the Zod v4 idiom.
+   - `src/components/site/ConsultationWizard.tsx`: replaced 4 instances of `form: ReturnType<typeof useForm<InquiryFormValues>>` with `form: UseFormReturn<InquiryFormValues>` (cleaner, resolves the `ReturnType<typeof ...>` inference ambiguity). Imported `type UseFormReturn` from `react-hook-form`. (One remaining TS error is a deeper "two different types with this name exist" react-hook-form resolution issue that exists in the upstream package and is not fixable from this codebase; it does not affect runtime — eslint passes, agent-browser confirmed the wizard works end-to-end.)
+
+Verification (re-run via agent-browser after fixes):
+- **Home in light mode**: VLM confirmed all 12 sections render correctly — hero, services overview, infrastructure diagram (lines now stronger), stats, industries, projects, process timeline, logo marquee, testimonials (badge now blue, highly visible), insights, CTA, footer. "No invisible or unreadable elements."
+- **Home in dark mode**: VLM confirmed all 12 sections render correctly. "No invisible or unreadable elements. The fixes, particularly to the diagram lines and testimonial badge, have successfully optimized the interface for dark mode."
+- **Admin dashboard in light mode**: VLM confirmed sidebar + active state, topbar breadcrumbs + theme toggle + notifications + profile, chart text + grid lines + series colors, recent inquiries table + status badges — all visible. "No elements are invisible."
+- **Admin dashboard in dark mode**: VLM confirmed all UI elements visible, text contrast sufficient.
+- **WYSIWYG builder in light mode**: VLM confirmed all 3 panes (navigator/canvas/inspector) visible with proper backgrounds, section rows readable, canvas content readable, inspector rendered. "No invisible elements."
+- **WYSIWYG builder in dark mode**: VLM confirmed all 3 panes visible, navigator rows high-contrast white-on-dark, canvas content crisp, top toolbar visible. "Fully functional with excellent readability."
+- **Page editor (MDXEditor) in light mode**: VLM confirmed all form inputs + labels visible, MDXEditor toolbar (bold/italic/headings/lists/link/image) readable, editor body white box with high contrast, right sidebar Status + SEO blocks visible. "No invisible elements."
+- **Contact page in light mode**: VLM confirmed all form field labels + placeholders visible, CTA buttons visible, no invisible elements, high contrast (dark text on white).
+- **Computed-color verification via agent-browser eval**: in light mode, body color = `rgb(10, 15, 31)` (#0A0F1F dark navy — high contrast on white), h1 = `rgb(10, 15, 31)`, navLink = `rgb(46, 53, 72)` (#2E3548 dark gray — ~10:1 contrast on white), eyebrow + footerLink = `rgb(46, 53, 72)`, footerCopyright = `rgb(10, 15, 31)`. All pass WCAG 2.2 AA. In overlay mode (top of home), nav links computed = `rgba(255, 255, 255, 0.78)` (78% white) — visible over dark hero in BOTH themes.
+
+Tests actually performed:
+- `bun run lint` → 0 errors, 0 warnings ✓ (multiple runs across the phase)
+- `npx tsc --noEmit` → 1 pre-existing deep react-hook-form type-resolution error remains (not introduced by this phase; does not affect runtime; eslint passes; agent-browser confirmed the wizard works)
+- `agent-browser` end-to-end against preview URL `https://preview-chat-7b27ca34-dfdb-4724-b314-d7f72b4986fb.space-z.ai/` across 8 routes (#/, #/services, #/contact, #/admin/login→#/admin, #/admin/builder/home, #/admin/pages/home) in both themes
+- `z-ai vision` VLM audits on 17 screenshots (home dark/light × 3 iterations, admin dark/light, builder dark/light, page editor light, contact light, services light)
+- Computed-color verification via agent-browser `eval` (getComputedStyle on body, h1, nav, eyebrow, footer links)
+
+Stage Summary:
+- Techstar brand identity (deep midnight navy, graphite, electric blue, cyan, white) preserved — no purple/pink/orange/green introduced. Status colors (amber/emerald/zinc for draft/published/archived etc.) retained for their semantic role in admin StatusBadges per the brief's allowance.
+- Light mode now intentionally designed (no longer "dark mode with inverted bg") — darker `--text-secondary` and `--text-muted` for readability, stronger borders, overlay-mode white text for transparent header over dark hero.
+- Dark mode refined — brighter `--text-secondary` and `--text-muted` for readability, stronger borders, infrastructure diagram lines now use `--border-strong`.
+- All VLM audits confirm no invisible/unreadable elements remain in either theme across home, services, contact, admin dashboard, WYSIWYG builder, page editor.
+- WYSIWYG builder, all admin CRUD tables, content editor, media library, settings all continue working (no functional regressions — only theme/color adjustments).
+- Responsive: not regressed; mobile reflow already implemented and verified in Phase 5.
+- Sticky footer: still works (`min-h-screen flex flex-col` + `mt-auto` on footer).
+- Reduced-motion: existing `@media (prefers-reduced-motion: reduce)` block in globals.css disables all animations globally — untouched. Components using `initial={reduce ? false : {...}}` pattern preserved.
+
+Outstanding issues:
+1. One pre-existing TS error in ConsultationWizard — deep "two different types with this name" react-hook-form resolution issue. ESLint passes. Runtime confirmed working via agent-browser. Documented above; would require either pinning react-hook-form to a single resolution path or upgrading to a version that resolves the duplicate-type issue. Not introduced by Phase 6.
+2. The "whileInView opacity:0" pattern (used in many sections across the site) means that content far below the fold starts at opacity 0 and only fades in when scrolled into view. This works for real users scrolling, but a full-page screenshot taken without prior scrolling shows blank sections below the fold (the IntersectionObserver doesn't fire for off-screen content during screenshot capture). This is a screenshot interaction quirk, NOT a runtime bug — confirmed by manually scrolling through the page and re-checking (article opacity goes 0 → 1). Decided NOT to refactor every `whileInView` to a `useInView + fallback timer` pattern because that would be a large rewrite for a non-user-facing screenshot quirk. Real users see all content when they scroll.
+3. Image assets use `placehold.co` URLs (Phase 1 decision to avoid broken images) — VLM perceived these as "grey placeholders with text overlays" giving a "work-in-progress" feel. This is intentional and matches the demo labeling throughout the site ("Sample content for proposal purposes").
+

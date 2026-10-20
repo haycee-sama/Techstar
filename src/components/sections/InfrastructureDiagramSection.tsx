@@ -71,12 +71,12 @@ export function InfrastructureDiagramSection() {
             {/* Connecting axes */}
             <div
               className="absolute left-1/2 top-1/2 h-px w-full -translate-x-1/2 -translate-y-1/2"
-              style={{ background: "var(--border-subtle)" }}
+              style={{ background: "var(--border-strong)" }}
               aria-hidden
             />
             <div
               className="absolute left-1/2 top-1/2 h-full w-px -translate-x-1/2 -translate-y-1/2"
-              style={{ background: "var(--border-subtle)" }}
+              style={{ background: "var(--border-strong)" }}
               aria-hidden
             />
             {/* Crosshair center marks */}
