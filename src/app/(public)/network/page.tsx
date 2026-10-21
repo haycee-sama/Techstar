@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
+import NetworkGlobeClient from "./NetworkGlobeClient";
 
 export const metadata: Metadata = {
   title: "Network",
@@ -7,21 +7,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/network" },
 };
 
-const NetworkGlobePage = dynamic(
-  () => import("@/components/pages/NetworkGlobePage").then((m) => m.NetworkGlobePage),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        className="flex min-h-[60vh] items-center justify-center"
-        style={{ backgroundColor: "var(--bg-deep)" }}
-      >
-        <div className="eyebrow">Loading network globe…</div>
-      </div>
-    ),
-  }
-);
-
 export default function Page() {
-  return <NetworkGlobePage />;
+  return <NetworkGlobeClient />;
 }
