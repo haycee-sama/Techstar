@@ -787,3 +787,108 @@ Stage Summary:
 - Next.js scroll-behavior warning fixed.
 - Repo: 4.1MB tracked, 234 source files (down from 243).
 - Vercel-ready: import https://github.com/haycee-sama/Techstar at https://vercel.com/new, accept Next.js 16 defaults.
+
+---
+Task ID: 11
+Agent: orchestrator (main)
+Task: Phase 11 — Lighthouse performance + accessibility + SEO remediation for https://techstar-livid.vercel.app/
+
+Lighthouse issues reported:
+- Performance 40-45
+- LCP 2.9-6.1s (target < 2.5s)
+- TBT 650-920ms (target < 200ms)
+- Initial server response 1.18-1.79s
+- JS execution 13.8-15.7s
+- Main-thread work 16.5-27.2s
+- Speed Index 7.3-7.7s
+- Accessibility 96 (touch-target audit failed)
+- SEO: 4 generic 'Learn more' links + invalid robots.txt
+
+ROOT CAUSE identified (the LCP blocker):
+- Fetched deployed HTML from https://techstar-livid.vercel.app/ — found the H1 'Intelligent protection. Connected infrastructure.' is the LCP element (font-size: clamp(2.5rem, 6vw, 5rem) — largest content on the page).
+- HeroSection wrapped each H1 word in <motion.span initial={opacity:0, y:28} animate={opacity:1, y:0}>. Framer-motion's SSR pass renders these spans with inline style opacity:0;transform:translateY(28px).
+- Verified via curl + grep: H1 in deployed SSR HTML was literally '<h1 ...><span style="opacity:0;transform:translateY(28px)">Intelligent</span>...'. The LCP element was INVISIBLE in SSR HTML until JS hydrated + framer-motion animated opacity to 1 (0.7s duration + 0.1s × word index delay = ~1.1s after JS load).
+- Combined with the ~1-2s JS bundle load time, LCP = 2.9-6.1s. This was the primary LCP blocker.
+
+Performance fixes applied:
+
+1. HeroSection LCP fix — removed opacity:0 from initial state on all hero motion elements:
+   - Eyebrow chip: initial={y:8} (was opacity:0,y:8)
+   - H1 word spans: initial={y:28} (was opacity:0,y:28) — THE LCP FIX
+   - Supporting paragraph: initial={y:12} (was opacity:0,y:12)
+   - CTA button container: initial={y:12} (was opacity:0,y:12)
+   - Announcement chip: initial={y:8} (was opacity:0,y:8)
+   - Kept the y-shift transform for the slide-up entrance animation (still runs on hydration, but the text is visible at y:28 in SSR — visible immediately, slides up on hydration).
+   - Verified via curl + grep on local dev server: H1 in SSR HTML now has style='transform:translateY(28px)' (NO opacity:0). LCP element is visible in SSR.
+   - Verified via agent-browser: H1 computed opacity = '1' on initial render.
+
+2. Lazy-load below-the-fold home sections via next/dynamic:
+   - HomePage.tsx wrapped 9 sections in dynamic(() => import(...), {ssr:true, loading:placeholder}):
+     InfrastructureDiagramSection, CapabilitiesStatsSection, IndustriesCarouselSection, FeaturedProjectsSection, ProcessTimelineSection, LogoMarqueeSection, TestimonialsSliderSection, InsightsCarouselSection, CtaBandSection.
+   - SSR content preserved (ssr:true) — content is in SSR HTML for SEO + LCP. Only the client-side JS chunks for these sections are deferred to separate bundles that load after the main bundle.
+   - Each section has a height-reserved loading placeholder (e.g. h-[600px], h-[400px]) to prevent layout shift while the chunk loads.
+   - HeroSection + ServicesOverviewSection remain eagerly loaded (above the fold — needed for LCP).
+   - Reduces main bundle size + main-thread blocking time + TBT.
+
+Accessibility fixes applied:
+
+1. Touch targets meet WCAG 2.2 AA (2.2.8 Target Size — Minimum, 44×44 CSS pixels):
+   - src/components/ui/button.tsx: icon size changed from size-9 (36px) to size-11 (44px). Affects all icon-only buttons app-wide (theme toggle, search, hamburger, carousel prev/next, back-to-top, etc.).
+   - TestimonialsSliderSection: pagination dots were 6px tall × 8-24px wide (way below 44×44). Wrapped each dot in a 44×44 button (inline-flex size-11 items-center justify-center) with the visual dot as a 6px-tall <span> child. Added aria-pressed={i === selected} for screen-reader state. Added focus-visible:ring-2 + ring-offset-2 for keyboard focus indicator.
+   - IndustriesCarouselSection: same dot fix. Also fixed aria-label from 'Go to slide N' to 'Go to industry N' (more descriptive).
+   - AnnouncementStrip: dismiss button was size-6 (24px). Bumped to size-11 (44px) + focus-visible ring.
+   - Verified via agent-browser on home page: 0 small buttons remaining (was 1 before fix). All 32 buttons ≥ 44×44.
+
+SEO fixes applied:
+
+1. Replace generic 'Learn more' / 'View service' / 'Read article' links with descriptive labels (the 4 generic links Lighthouse flagged):
+   - ServicesOverviewSection (home page, 2 instances): 'Learn more' → 'Explore {service.title}' (e.g. 'Explore CCTV & Video Surveillance', 'Explore Cybersecurity').
+   - ServicesIndexPage (2 instances): 'Learn more' → 'Explore {service.title}', 'View service' → 'Explore {service.title}'.
+   - ProjectDetailPage: 'View service' → 'View {s.title}' (related services chips).
+   - IndustryDetailPage: 'View service' → 'View {service.title}' (recommended services).
+   - InsightsIndexPage (2 instances): 'Read article' → 'Read "{article.title}"' (featured + list).
+   - ProjectsIndexPage: 'View case study' → 'View "{project.title}" case study'.
+   - FeaturedProjectsSection (home): 'View case study' → 'View "{project.title}" case study'.
+   - ServicesGridSection (builder): 'Learn more' → 'Explore {s.title}'.
+   - Verified via agent-browser on /services: 12 'Explore {title}' links, 0 generic 'Learn more' / 'View service' links remaining.
+
+2. Fix robots.txt:
+   - public/robots.txt rewritten. Now Disallows /admin/ + /preview/ (was allowing everything — admin pages would've been crawlable). Adds explicit User-agent rules for Googlebot, Bingbot, Twitterbot, facebookexternalhit, * (all bots). Adds Sitemap: https://techstar.example/sitemap.xml directive.
+
+3. Add sitemap.xml:
+   - src/app/sitemap.ts (new): Next.js App Router convention generates /sitemap.xml dynamically. Lists all 11 static public routes + 8 service detail pages + 8 industry detail pages + 6 published projects + 6 published articles. Each with lastmod, changefreq, priority. Excludes /admin/* + /preview/* (noindex + behind auth).
+   - Verified: GET /sitemap.xml returns 200 + valid XML (6137 bytes), GET /robots.txt returns 200 + correct content.
+
+Verification:
+- bun run lint → 0 errors, 0 warnings ✓
+- Home page H1 visible in SSR HTML (opacity:1, no opacity:0 inline style) ✓
+- All 32 home page buttons ≥ 44×44 (was 1 small before fix) ✓
+- 0 generic 'Learn more' / 'View service' links on /services (was 4) ✓
+- /sitemap.xml returns 200 + valid XML ✓
+- /robots.txt returns 200 + correct content with Sitemap directive + Disallow /admin/ ✓
+- 12 sections render on home page (no missing content from lazy-loading) ✓
+- Testimonials carousel still advances on click (Dr. Anika Sorensen visible after Next) ✓
+- All key routes return HTTP 200 (curl-tested): /, /about, /services, /services/cctv-video-surveillance, /contact, /faq ✓
+- No console errors ✓
+
+Pushed to https://github.com/haycee-sama/Techstar (commit b611092 Phase 11: Lighthouse performance + accessibility + SEO remediation). PAT scrubbed from local git config immediately after push. Vercel will auto-deploy from main branch — the production build will reflect all fixes above.
+
+Expected Lighthouse improvements (will be measurable after Vercel rebuild):
+- LCP: should drop from 2.9-6.1s to <1.5s (H1 visible in SSR, no longer blocked by JS hydration + framer-motion animation).
+- TBT: should drop from 650-920ms to <300ms (lazy-loaded below-the-fold sections defer their JS chunks).
+- Accessibility: should hit 100 (touch-target audit passes — all buttons ≥ 44×44).
+- SEO: should hit 100 (4 generic 'Learn more' links replaced with descriptive labels, robots.txt fixed, sitemap.xml added).
+
+Honest limitations:
+- I could not run Lighthouse locally in this sandbox (no chrome headless shell with Lighthouse CLI installed; agent-browser is a vanilla chrome instance, not Lighthouse-capable). The user should run Lighthouse against the deployed https://techstar-livid.vercel.app/ after Vercel rebuilds to confirm the score improvements.
+- The 'initial server response' metric (1.18-1.79s) is Vercel's serverless cold-start time. Bumping Vercel to a higher plan or using Edge runtime would improve this, but it's outside the codebase's control.
+- Some below-the-fold sections still use framer-motion's whileInView with initial={opacity:0} — this defers their visibility until JS hydrates + IntersectionObserver fires. Not LCP-critical (they're below the fold) but affects perceived load time on long pages. Left as-is for visual polish.
+- The placehold.co external image URLs on service/project pages are still external requests (not optimized by Next.js Image). They're slow on first load. Replacing them with local SVG placeholders or next/image would improve LCP on service/project detail pages. Left as-is for now (the home page LCP is fixed, which is the primary metric).
+
+Stage Summary:
+- Root cause found + fixed: H1 LCP element was invisible in SSR HTML due to framer-motion's initial={opacity:0} on word spans. Removed opacity:0 from all hero motion elements. H1 now visible in SSR.
+- Performance: lazy-loaded 9 below-the-fold home sections via next/dynamic with ssr:true (preserves SSR content, defers JS chunks).
+- Accessibility: all icon buttons bumped to 44×44 (was 36px), carousel dots wrapped in 44×44 buttons with visual dot as child (was 6×8-24px), announcement dismiss bumped to 44×44 (was 24px).
+- SEO: 4 generic 'Learn more' / 'View service' links replaced with descriptive 'Explore {service.title}' / 'View {project.title} case study' labels. robots.txt fixed (Disallow /admin/, Sitemap directive). sitemap.ts added (generates /sitemap.xml with all public routes).
+- All fixes verified via lint + curl + agent-browser. No regressions.
+- Vercel will auto-deploy from main branch. User should re-run Lighthouse against the deployed URL to confirm score improvements.
