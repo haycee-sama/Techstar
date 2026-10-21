@@ -395,7 +395,7 @@ export function ProjectsIndexPage() {
                         className="group/link inline-flex items-center gap-1.5 text-sm font-medium"
                         style={{ color: "var(--accent-bright)" }}
                       >
-                        View case study
+                        View “{project.title}” case study
                         <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-0.5" aria-hidden />
                       </Link>
                       <span

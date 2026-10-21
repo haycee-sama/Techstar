@@ -265,7 +265,7 @@ export function InsightsIndexPage() {
                         style={{ backgroundColor: "var(--accent)", color: "#fff" }}
                       >
                         <Link to={`/insights/${article.slug}`} className="inline-flex items-center gap-2">
-                          Read article
+                          Read “{article.title}”
                           <ArrowRight className="size-4" aria-hidden />
                         </Link>
                       </Button>
@@ -538,7 +538,7 @@ export function InsightsIndexPage() {
                         <div className="mt-5">
                           <Button asChild variant="outline" style={{ borderColor: "var(--border-strong)" }}>
                             <Link to={`/insights/${article.slug}`} className="inline-flex items-center gap-2 text-sm">
-                              Read article
+                              Read “{article.title}”
                               <ArrowRight className="size-4" aria-hidden />
                             </Link>
                           </Button>

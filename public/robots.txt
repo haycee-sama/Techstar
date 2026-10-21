@@ -1,14 +1,20 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# Techstar — robots.txt
+# Public content is crawlable. Admin + preview routes are private.
 
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /preview/
+
+# Explicitly allow the homepage + key public sections
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /preview/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /preview/
+
+Sitemap: https://techstar.example/sitemap.xml

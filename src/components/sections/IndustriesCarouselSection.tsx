@@ -163,14 +163,20 @@ export function IndustriesCarouselSection() {
           <button
             key={i}
             type="button"
-            aria-label={`Go to slide ${i + 1}`}
+            aria-label={`Go to industry ${i + 1}`}
+            aria-pressed={i === selected}
             onClick={() => embla?.scrollTo(i)}
-            className="h-1.5 rounded-full transition-all"
-            style={{
-              width: i === selected ? 24 : 8,
-              backgroundColor: i === selected ? "var(--accent-bright)" : "var(--border-strong)",
-            }}
-          />
+            className="inline-flex size-11 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-bright)] focus-visible:ring-offset-2"
+          >
+            <span
+              className="block rounded-full transition-all"
+              style={{
+                height: 6,
+                width: i === selected ? 24 : 8,
+                backgroundColor: i === selected ? "var(--accent-bright)" : "var(--border-strong)",
+              }}
+            />
+          </button>
         ))}
       </div>
     </section>

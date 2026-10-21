@@ -107,10 +107,10 @@ export function AnnouncementStrip() {
                 type="button"
                 aria-label="Dismiss announcement"
                 onClick={onDismiss}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-2)]"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-bright)] focus-visible:ring-offset-2"
                 style={{ color: "var(--text-muted)" }}
               >
-                <X className="size-3.5" aria-hidden />
+                <X className="size-4" aria-hidden />
               </button>
             </div>
           </div>

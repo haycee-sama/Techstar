@@ -123,7 +123,7 @@ export function FeaturedProjectsSection() {
                     className="mt-4 inline-flex items-center gap-1 text-xs font-medium"
                     style={{ color: "var(--accent-bright)" }}
                   >
-                    View case study
+                    View “{project.title}” case study
                     <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </div>
                 </div>

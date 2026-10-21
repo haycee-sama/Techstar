@@ -43,8 +43,8 @@ export function HeroSection() {
         {/* Left: Editorial copy */}
         <div className="lg:col-span-7">
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reduce ? false : { y: 8 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.4 }}
             className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5"
             style={{ borderColor: "var(--border-subtle)" }}
@@ -70,8 +70,8 @@ export function HeroSection() {
             {headlineWords.map((item, i) => (
               <motion.span
                 key={item.word + i}
-                initial={reduce ? false : { opacity: 0, y: 28 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={reduce ? false : { y: 28 }}
+                animate={{ y: 0 }}
                 transition={{ duration: 0.7, delay: item.delay, ease: [0.16, 1, 0.3, 1] }}
                 className="inline-block"
                 style={{ marginRight: "0.18em" }}
@@ -82,8 +82,8 @@ export function HeroSection() {
           </h1>
 
           <motion.p
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reduce ? false : { y: 12 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.6, delay: 0.55 }}
             className="mt-6 max-w-xl text-pretty"
             style={{
@@ -99,8 +99,8 @@ export function HeroSection() {
           </motion.p>
 
           <motion.div
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reduce ? false : { y: 12 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.6, delay: 0.7 }}
             className="mt-8 flex flex-wrap items-center gap-3"
           >
@@ -136,8 +136,8 @@ export function HeroSection() {
           {/* Announcement chip */}
           {announcement && (
             <motion.div
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reduce ? false : { y: 8 }}
+              animate={{ y: 0 }}
               transition={{ duration: 0.6, delay: 0.9 }}
               className="mt-6"
             >

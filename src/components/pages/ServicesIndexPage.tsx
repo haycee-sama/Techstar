@@ -379,7 +379,7 @@ export function ServicesIndexPage() {
                         className="group/link inline-flex items-center gap-1.5 text-sm font-medium"
                         style={{ color: "var(--accent-bright)" }}
                       >
-                        Learn more
+                        Explore {service.title}
                         <ArrowRight className="size-4 transition-transform group-hover/link:translate-x-0.5" aria-hidden />
                       </Link>
                       <span className="font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>
@@ -551,7 +551,7 @@ export function ServicesIndexPage() {
                         <div className="mt-5">
                           <Button asChild variant="outline" style={{ borderColor: "var(--border-strong)" }}>
                             <Link to={`/services/${service.slug}`} className="inline-flex items-center gap-2 text-sm">
-                              View service
+                              Explore {service.title}
                               <ArrowRight className="size-4" aria-hidden />
                             </Link>
                           </Button>

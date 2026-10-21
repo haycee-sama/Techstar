@@ -461,7 +461,7 @@ export function ProjectDetailPage({ slug }: ProjectDetailPageProps) {
                     {s.title}
                   </div>
                   <div className="mt-1 text-[10px] inline-flex items-center gap-1" style={{ color: "var(--accent-bright)" }}>
-                    View service
+                    View {s.title}
                     <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </div>
                 </Link>

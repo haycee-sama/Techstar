@@ -140,7 +140,7 @@ export function ServicesOverviewSection() {
                       className="mt-4 inline-flex items-center gap-1 text-xs font-medium"
                       style={{ color: "var(--accent-bright)" }}
                     >
-                      Learn more
+                      Explore {service.title}
                       <ArrowRight
                         className="size-3 transition-transform group-hover:translate-x-0.5"
                         aria-hidden
@@ -253,7 +253,7 @@ function SplitRow({ service, reversed, index, reduce }: SplitRowProps) {
             className="group inline-flex items-center gap-2 text-sm font-medium"
             style={{ color: "var(--accent-bright)" }}
           >
-            Learn more
+            Explore {service.title}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
           </Link>
         </div>

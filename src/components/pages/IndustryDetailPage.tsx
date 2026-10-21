@@ -355,7 +355,7 @@ export function IndustryDetailPage({ slug }: IndustryDetailPageProps) {
                       {service.tagline}
                     </p>
                     <div className="mt-4 flex items-center gap-1 text-xs font-medium" style={{ color: "var(--accent-bright)" }}>
-                      View service
+                      View {service.title}
                       <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
                     </div>
                   </Link>
