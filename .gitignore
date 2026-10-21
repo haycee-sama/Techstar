@@ -71,3 +71,7 @@ server.log
 
 # OS files
 Thumbs.db
+
+# Environment variables
+.env
+.env.*

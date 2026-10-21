@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none" role="img" aria-label="Techstar — Security. Infrastructure. Intelligence.">
+  <defs>
+    <linearGradient id="og-bg-grad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#060A14"/>
+      <stop offset="50%" stop-color="#0A0F1F"/>
+      <stop offset="100%" stop-color="#11182A"/>
+    </linearGradient>
+    <linearGradient id="og-mark-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="og-stroke-grad" x1="0" y1="0" x2="0" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <pattern id="og-grid" width="56" height="56" patternUnits="userSpaceOnUse">
+      <path d="M 56 0 L 0 0 0 56" fill="none" stroke="#3B82F6" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#og-bg-grad)"/>
+  <rect width="1200" height="630" fill="url(#og-grid)"/>
+  <!-- Corner coordinate marks -->
+  <rect x="40" y="40" width="20" height="20" fill="none" stroke="#60A5FA" stroke-opacity="0.4" stroke-width="1.5"/>
+  <rect x="1140" y="40" width="20" height="20" fill="none" stroke="#60A5FA" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="0"/>
+  <rect x="40" y="570" width="20" height="20" fill="none" stroke="#22D3EE" stroke-opacity="0.4" stroke-width="1.5"/>
+  <rect x="1140" y="570" width="20" height="20" fill="none" stroke="#22D3EE" stroke-opacity="0.4" stroke-width="1.5"/>
+  <!-- Techstar logo mark (scaled 2.5x) -->
+  <g transform="translate(490, 90) scale(2.5)">
+    <path d="M24 3 L42 13.5 V34.5 L24 45 L6 34.5 V13.5 Z" fill="url(#og-mark-grad)" stroke="url(#og-stroke-grad)" stroke-width="1.25" stroke-opacity="0.55"/>
+    <path d="M15 18 H33 M24 18 V33 M20 22 L24 27 L28 22" stroke="#060A14" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="24" cy="33.5" r="1.4" fill="#060A14"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="600" y="370" text-anchor="middle" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="56" font-weight="700" fill="#F4F5F7" letter-spacing="-0.5">
+    <tspan fill="#F4F5F7">TECH</tspan><tspan fill="#60A5FA">STAR</tspan>
+  </text>
+  <!-- Tagline -->
+  <text x="600" y="430" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="22" font-weight="500" fill="#A8B0C2" letter-spacing="4">
+    SECURITY. INFRASTRUCTURE. INTELLIGENCE.
+  </text>
+  <!-- Accent line -->
+  <rect x="540" y="465" width="120" height="2" rx="1" fill="url(#og-stroke-grad)" opacity="0.6"/>
+  <!-- Bottom label -->
+  <text x="600" y="530" text-anchor="middle" font-family="'Inter', system-ui, sans-serif" font-size="16" font-weight="400" fill="#6B7390" letter-spacing="1">
+    Integrated protection for people, infrastructure, data, and operations.
+  </text>
+</svg>

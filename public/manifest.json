@@ -1,0 +1,23 @@
+{
+  "name": "Techstar — Security. Infrastructure. Intelligence.",
+  "short_name": "Techstar",
+  "description": "Integrated security, networking, and life-safety systems engineered as one program.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060A14",
+  "theme_color": "#060A14",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -45,21 +45,34 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/logo.svg" }],
+  },
+  manifest: "/manifest.json",
   openGraph: {
     type: "website",
     siteName: "Techstar",
     title: "Techstar — Security. Infrastructure. Intelligence.",
     description:
       "Integrated security, networking, and life-safety systems engineered as one program.",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Techstar — Security. Infrastructure. Intelligence.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Techstar — Security. Infrastructure. Intelligence.",
     description:
       "Integrated security, networking, and life-safety systems engineered as one program.",
-  },
-  icons: {
-    icon: "/logo.svg",
+    images: ["/og-image.svg"],
   },
 };
 
