@@ -11,67 +11,67 @@ import type { ContentState } from "@/lib/types";
 // These are sample URLs centralized for easy replacement.
 const MEDIA = {
   heroControlRoom:
-    "https://placehold.co/1600x900/0A0F1F/3B82F6?text=Techstar+Control+Room",
+    "/placeholders/techstar-control-room-0A0F1F-3B82F6.svg",
   heroNetwork:
-    "https://placehold.co/1600x900/060A14/22D3EE?text=Network+Infrastructure",
+    "/placeholders/network-infrastructure-060A14-22D3EE.svg",
   serviceCctv:
-    "https://placehold.co/1200x800/0A0F1F/60A5FA?text=CCTV+Surveillance",
+    "/placeholders/cctv-surveillance-0A0F1F-60A5FA.svg",
   serviceNetwork:
-    "https://placehold.co/1200x800/11182A/60A5FA?text=Structured+Cabling",
+    "/placeholders/structured-cabling-11182A-60A5FA.svg",
   serviceCyber:
-    "https://placehold.co/1200x800/141923/22D3EE?text=Cybersecurity",
+    "/placeholders/cybersecurity-141923-22D3EE.svg",
   serviceSmart:
-    "https://placehold.co/1200x800/0A0F1F/22D3EE?text=Smart+Building",
+    "/placeholders/smart-building-0A0F1F-22D3EE.svg",
   serviceFire:
-    "https://placehold.co/1200x800/18203A/EF4444?text=Fire+Life+Safety",
+    "/placeholders/fire-life-safety-18203A-EF4444.svg",
   serviceAccess:
-    "https://placehold.co/1200x800/11182A/10B981?text=Access+Control",
+    "/placeholders/access-control-11182A-10B981.svg",
   serviceIntrusion:
-    "https://placehold.co/1200x800/060A14/F59E0B?text=Perimeter+Security",
+    "/placeholders/perimeter-security-060A14-F59E0B.svg",
   serviceIT:
-    "https://placehold.co/1200x800/141923/60A5FA?text=Managed+IT",
+    "/placeholders/managed-it-141923-60A5FA.svg",
   projectMeridian:
-    "https://placehold.co/1200x800/0A0F1F/3B82F6?text=Meridian+Tower",
+    "/placeholders/meridian-tower-0A0F1F-3B82F6.svg",
   projectNorthgate:
-    "https://placehold.co/1200x800/11182A/EF4444?text=Northgate+Medical",
+    "/placeholders/northgate-medical-11182A-EF4444.svg",
   projectCascade:
-    "https://placehold.co/1200x800/060A14/22D3EE?text=Cascade+Logistics",
+    "/placeholders/cascade-logistics-060A14-22D3EE.svg",
   projectHarborview:
-    "https://placehold.co/1200x800/18203A/10B981?text=Harborview+Residences",
+    "/placeholders/harborview-residences-18203A-10B981.svg",
   projectAtlas:
-    "https://placehold.co/1200x800/141923/F59E0B?text=Atlas+Distribution",
+    "/placeholders/atlas-distribution-141923-F59E0B.svg",
   projectRiverside:
-    "https://placehold.co/1200x800/0A0F1F/60A5FA?text=Riverside+Campus",
+    "/placeholders/riverside-campus-0A0F1F-60A5FA.svg",
   articleVideoAnalytics:
-    "https://placehold.co/1200x700/0A0F1F/3B82F6?text=Video+Analytics",
+    "/placeholders/video-analytics-0A0F1F-3B82F6.svg",
   articleCabling:
-    "https://placehold.co/1200x700/11182A/22D3EE?text=Cabling+Choices",
+    "/placeholders/cabling-choices-11182A-22D3EE.svg",
   articleCyber:
-    "https://placehold.co/1200x700/141923/EF4444?text=Cyber+Hygiene",
+    "/placeholders/cyber-hygiene-141923-EF4444.svg",
   articleAccessControl:
-    "https://placehold.co/1200x700/18203A/10B981?text=Access+Control",
+    "/placeholders/access-control-18203A-10B981.svg",
   articleSmartBuilding:
-    "https://placehold.co/1200x700/060A14/60A5FA?text=Smart+Building",
+    "/placeholders/smart-building-060A14-60A5FA.svg",
   articleFire:
-    "https://placehold.co/1200x700/0A0F1F/F59E0B?text=Life+Safety",
+    "/placeholders/life-safety-0A0F1F-F59E0B.svg",
   articleUptime:
-    "https://placehold.co/1200x700/141923/22D3EE?text=Uptime",
+    "/placeholders/uptime-141923-22D3EE.svg",
   industryCorporate:
-    "https://placehold.co/800x600/0A0F1F/3B82F6?text=Corporate",
+    "/placeholders/corporate-0A0F1F-3B82F6.svg",
   industryHealthcare:
-    "https://placehold.co/800x600/11182A/EF4444?text=Healthcare",
+    "/placeholders/healthcare-11182A-EF4444.svg",
   industryEducation:
-    "https://placehold.co/800x600/060A14/10B981?text=Education",
+    "/placeholders/education-060A14-10B981.svg",
   industryHospitality:
-    "https://placehold.co/800x600/18203A/F59E0B?text=Hospitality",
+    "/placeholders/hospitality-18203A-F59E0B.svg",
   industryIndustrial:
-    "https://placehold.co/800x600/141923/60A5FA?text=Industrial",
+    "/placeholders/industrial-141923-60A5FA.svg",
   industryRetail:
-    "https://placehold.co/800x600/0A0F1F/22D3EE?text=Retail",
+    "/placeholders/retail-0A0F1F-22D3EE.svg",
   industryResidential:
-    "https://placehold.co/800x600/11182A/60A5FA?text=Residential",
+    "/placeholders/residential-11182A-60A5FA.svg",
   industryPublic:
-    "https://placehold.co/800x600/060A14/3B82F6?text=Public+Sector",
+    "/placeholders/public-sector-060A14-3B82F6.svg",
 };
 
 export const seedData: ContentState = {
@@ -2186,7 +2186,7 @@ export const seedData: ContentState = {
             eyebrow: "About Techstar",
             heading: "Engineered for the worst day of your year.",
             body: "Techstar is an integrated security, infrastructure, and intelligence practice. We design, deploy, and operate systems that protect people, property, and data — engineered as one program, documented to the drop, and operated against the worst day of your year.",
-            image: "https://placehold.co/1200x900/0A0F1F/3B82F6?text=About+Techstar",
+            image: "/placeholders/about-techstar-0A0F1F-3B82F6.svg",
             imageAlt: "Techstar engineers reviewing facility plans",
             ctaLabel: "Talk to an expert",
             ctaHref: "#/contact",

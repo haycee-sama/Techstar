@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { PreviewPage } from "@/components/pages/PreviewPage";
+
+export const metadata: Metadata = {
+  title: "Preview",
+  description: "Preview of a builder-edited page (demo).",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page({
   params,

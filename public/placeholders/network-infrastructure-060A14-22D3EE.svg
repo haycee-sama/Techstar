@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Network Infrastructure">
+  <rect width="1600" height="900" fill="#060A14"/>
+  <defs>
+    <pattern id="grid-network-infrastructure" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#22D3EE" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="900" fill="url(#grid-network-infrastructure)"/>
+  <rect x="40" y="40" width="32" height="32" fill="none" stroke="#22D3EE" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="1528" y="828" width="32" height="32" fill="none" stroke="#22D3EE" stroke-opacity="0.55" stroke-width="1.5"/>
+  <text x="800" y="450" text-anchor="middle" dominant-baseline="middle" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="32" font-weight="600" fill="#22D3EE">Network Infrastructure</text>
+  <text x="40" y="870" font-family="ui-monospace, monospace" font-size="11" fill="#22D3EE" fill-opacity="0.5" letter-spacing="2">TECHSTAR</text>
+</svg>

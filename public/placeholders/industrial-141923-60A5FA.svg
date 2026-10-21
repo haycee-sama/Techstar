@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Industrial">
+  <rect width="800" height="600" fill="#141923"/>
+  <defs>
+    <pattern id="grid-industrial" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#60A5FA" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="600" fill="url(#grid-industrial)"/>
+  <rect x="40" y="40" width="32" height="32" fill="none" stroke="#60A5FA" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="728" y="528" width="32" height="32" fill="none" stroke="#60A5FA" stroke-opacity="0.55" stroke-width="1.5"/>
+  <text x="400" y="300" text-anchor="middle" dominant-baseline="middle" font-family="'Space Grotesk', 'Inter', system-ui, sans-serif" font-size="42" font-weight="600" fill="#60A5FA">Industrial</text>
+  <text x="40" y="570" font-family="ui-monospace, monospace" font-size="11" fill="#60A5FA" fill-opacity="0.5" letter-spacing="2">TECHSTAR</text>
+</svg>

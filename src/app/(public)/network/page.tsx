@@ -1,6 +1,11 @@
-"use client";
-
+import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+
+export const metadata: Metadata = {
+  title: "Network",
+  description: "Interactive network globe — Techstar's connected security and infrastructure visualization.",
+  alternates: { canonical: "/network" },
+};
 
 const NetworkGlobePage = dynamic(
   () => import("@/components/pages/NetworkGlobePage").then((m) => m.NetworkGlobePage),
