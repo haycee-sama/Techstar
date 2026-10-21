@@ -7,69 +7,70 @@
 
 import type { ContentState } from "@/lib/types";
 
-// ---- Centralized media (Unsplash photo IDs known-stable + placeholders) ----
-// These are sample URLs centralized for easy replacement.
+// ---- Centralized media — real images downloaded from web image search.
+// See public/media/CREDITS.md for original sources + license notes.
+// Entries without a real photo retain their branded SVG placeholder.
 const MEDIA = {
   heroControlRoom:
-    "/placeholders/techstar-control-room-0A0F1F-3B82F6.svg",
+    "/media/security-operations-center-with-multiple-monitors-.jpg",
   heroNetwork:
-    "/placeholders/network-infrastructure-060A14-22D3EE.svg",
+    "/media/server-room-with-network-racks-and-blue--lights-da.jpg",
   serviceCctv:
-    "/placeholders/cctv-surveillance-0A0F1F-60A5FA.svg",
+    "/media/-security-camera.jpg",
   serviceNetwork:
-    "/placeholders/structured-cabling-11182A-60A5FA.svg",
+    "/media/server-room-with-network-racks-and-blue--lights-da.jpg",
   serviceCyber:
-    "/placeholders/cybersecurity-141923-22D3EE.svg",
+    "/media/cybersecurity-code-on-laptop-screen-with-dark-back.png",
   serviceSmart:
-    "/placeholders/smart-building-0A0F1F-22D3EE.svg",
+    "/media/smart-building-automation-system-touchscreen-inter.jpg",
   serviceFire:
-    "/placeholders/fire-life-safety-18203A-EF4444.svg",
+    "/media/fire-alarm-system.jpg",
   serviceAccess:
     "/placeholders/access-control-11182A-10B981.svg",
   serviceIntrusion:
     "/placeholders/perimeter-security-060A14-F59E0B.svg",
   serviceIT:
-    "/placeholders/managed-it-141923-60A5FA.svg",
+    "/media/-technician-servicing-server-rack-in-data-center.jpg",
   projectMeridian:
-    "/placeholders/meridian-tower-0A0F1F-3B82F6.svg",
+    "/media/modern-commercial-building-lobby-with-security-tur.jpg",
   projectNorthgate:
     "/placeholders/northgate-medical-11182A-EF4444.svg",
   projectCascade:
     "/placeholders/cascade-logistics-060A14-22D3EE.svg",
   projectHarborview:
-    "/placeholders/harborview-residences-18203A-10B981.svg",
+    "/media/modern-residential-apartment-building-exterior-at-.jpg",
   projectAtlas:
     "/placeholders/atlas-distribution-141923-F59E0B.svg",
   projectRiverside:
-    "/placeholders/riverside-campus-0A0F1F-60A5FA.svg",
+    "/media/university-campus-building-modern-architecture.jpg",
   articleVideoAnalytics:
-    "/placeholders/video-analytics-0A0F1F-3B82F6.svg",
+    "/media/computer-screen-with-data.jpg",
   articleCabling:
-    "/placeholders/cabling-choices-11182A-22D3EE.svg",
+    "/media/network-ethernet-cable-switch.jpg",
   articleCyber:
-    "/placeholders/cyber-hygiene-141923-EF4444.svg",
+    "/media/cybersecurity-code-on-laptop-screen-with-dark-back.png",
   articleAccessControl:
     "/placeholders/access-control-18203A-10B981.svg",
   articleSmartBuilding:
-    "/placeholders/smart-building-060A14-60A5FA.svg",
+    "/media/smart-building-o-sensors-automation-control-panel.jpg",
   articleFire:
-    "/placeholders/life-safety-0A0F1F-F59E0B.svg",
+    "/media/fire-alarm-system.jpg",
   articleUptime:
-    "/placeholders/uptime-141923-22D3EE.svg",
+    "/media/server-room-with-network-racks-and-blue--lights-da.jpg",
   industryCorporate:
-    "/placeholders/corporate-0A0F1F-3B82F6.svg",
+    "/media/modern-commercial-building-lobby-with-security-tur.jpg",
   industryHealthcare:
     "/placeholders/healthcare-11182A-EF4444.svg",
   industryEducation:
-    "/placeholders/education-060A14-10B981.svg",
+    "/media/school-university-classroom-with-technology-and-st.jpeg",
   industryHospitality:
-    "/placeholders/hospitality-18203A-F59E0B.svg",
+    "/media/hotel-lobby-interior-with-modern-furniture-and-des.jpg",
   industryIndustrial:
     "/placeholders/industrial-141923-60A5FA.svg",
   industryRetail:
-    "/placeholders/retail-0A0F1F-22D3EE.svg",
+    "/media/retail-store-shopping.jpg",
   industryResidential:
-    "/placeholders/residential-11182A-60A5FA.svg",
+    "/media/apartment-building-lobby.png",
   industryPublic:
     "/placeholders/public-sector-060A14-3B82F6.svg",
 };
