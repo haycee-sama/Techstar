@@ -75,3 +75,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.*
+
+# Allow .env.example to be tracked
+!.env.example
