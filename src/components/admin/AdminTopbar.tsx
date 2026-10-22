@@ -41,12 +41,14 @@ export function AdminTopbar() {
   const { setTheme, resolvedTheme } = useTheme();
   const [session, setSession] = useState<{ email: string } | null>(null);
 
+  // Mount/unmount effect — runs ONCE when entering admin, ONCE when
+  // leaving. Must NOT depend on resolvedTheme — otherwise every theme
+  // toggle re-triggers this effect, re-capturing the "public theme"
+  // (which is actually the admin theme at that point) + re-applying
+  // the admin theme, creating a loop that overrides the user's choice.
   useEffect(() => {
     setSession(getAdminSession());
 
-    // Capture the public-site theme on first admin entry so we can restore it
-    // when the user leaves admin. We snapshot whatever next-themes currently
-    // has persisted (or fall back to the resolved theme, or dark).
     let publicTheme: string | null = null;
     try {
       publicTheme = window.localStorage.getItem("theme");
@@ -56,7 +58,6 @@ export function AdminTopbar() {
     if (!publicTheme) publicTheme = resolvedTheme ?? "light";
     window.localStorage.setItem(PUBLIC_THEME_BACKUP_KEY, publicTheme);
 
-    // Apply the admin's preferred theme (default light on first visit).
     const storedAdmin = window.localStorage.getItem(ADMIN_THEME_KEY);
     const adminTheme = storedAdmin ?? "light";
     setTheme(adminTheme);
@@ -64,7 +65,6 @@ export function AdminTopbar() {
       window.localStorage.setItem(ADMIN_THEME_KEY, adminTheme);
     }
 
-    // Restore the public-site theme when leaving admin.
     return () => {
       try {
         const restoreTo = window.localStorage.getItem(PUBLIC_THEME_BACKUP_KEY) ?? "light";
@@ -74,7 +74,20 @@ export function AdminTopbar() {
         // ignore
       }
     };
-  }, [setTheme, resolvedTheme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync: persist the current resolved theme to admin localStorage
+  // whenever it changes (e.g. user clicks ThemeToggle). This ensures
+  // the preference survives navigation away + back to admin.
+  useEffect(() => {
+    if (!resolvedTheme) return;
+    try {
+      window.localStorage.setItem(ADMIN_THEME_KEY, resolvedTheme);
+    } catch {
+      // ignore
+    }
+  }, [resolvedTheme]);
 
   // Sync the resolved theme back to the admin theme localStorage so
   // the preference survives navigation away + back to admin. Without
