@@ -218,7 +218,7 @@ export function ProjectsIndexPage() {
           </div>
 
           {categoryPool.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex mt-3 flex-wrap items-center gap-2">
               <span className="eyebrow">Categories</span>
               {categoryPool.map((c) => {
                 const isActive = activeCategory === c;
@@ -250,6 +250,38 @@ export function ProjectsIndexPage() {
                   <X className="size-3" aria-hidden />
                   Clear filters
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Mobile: category dropdown + clear */}
+          {categoryPool.length > 0 && (
+            <div className="sm:hidden mt-3 flex items-center gap-2">
+              <Select
+                value={activeCategory || "all"}
+                onValueChange={(v) => setActiveCategory(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-full" aria-label="Filter by category">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categoryPool.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(activeCategory || activeYear || search) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="shrink-0"
+                  style={{ borderColor: "var(--border-strong)" }}
+                >
+                  <X className="size-3.5" aria-hidden />
+                  Clear
+                </Button>
               )}
             </div>
           )}

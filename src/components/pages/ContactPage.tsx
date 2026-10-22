@@ -57,7 +57,7 @@ type FormMode = "standard" | "wizard";
 export function ContactPage() {
   const reduce = useReducedMotion();
   const globalSettings = useGlobalSettings();
-  const [mode, setMode] = useState<FormMode>("standard");
+  const [mode, setMode] = useState<FormMode>("wizard");
   const [wizardInitial, setWizardInitial] = useState<Partial<InquiryFormValues> | undefined>(undefined);
 
   const handleConfigure = (bundle: Partial<InquiryFormValues>) => {

@@ -167,9 +167,12 @@
   --ring: var(--accent-bright);
 
   /* shadcn sidebar tokens (admin) — light mode */
-  --sidebar: var(--surface-1);
+  /* Use surface-2 (#EEF1F6) instead of surface-1 (#FFFFFF) so the
+     sidebar is visually distinct from the page background — prevents
+     the 'transparent sidebar' effect on mobile. */
+  --sidebar: var(--surface-2);
   --sidebar-foreground: var(--text-primary);
-  --sidebar-accent: var(--surface-2);
+  --sidebar-accent: var(--surface-1);
   --sidebar-accent-foreground: var(--text-primary);
   --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--accent-bright);

@@ -15,6 +15,13 @@ import {
 import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Breadcrumbs } from "@/components/site/Breadcrumbs";
 import { EmptyState } from "@/components/site/EmptyState";
 import { CtaBandSection } from "@/components/sections/CtaBandSection";
@@ -322,7 +329,7 @@ export function InsightsIndexPage() {
             </div>
           </div>
           {categoryPool.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex mt-3 flex-wrap items-center gap-2">
               <span className="eyebrow">Topic</span>
               {categoryPool.map((c) => {
                 const isActive = activeCategory === c;
@@ -347,7 +354,7 @@ export function InsightsIndexPage() {
             </div>
           )}
           {tagPool.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex mt-2 flex-wrap items-center gap-2">
               <span className="eyebrow">Tags</span>
               {tagPool.map((t) => {
                 const isActive = activeTag === t;
@@ -382,6 +389,54 @@ export function InsightsIndexPage() {
               )}
             </div>
           )}
+
+          {/* Mobile: dropdown filters */}
+          <div className="sm:hidden mt-3 flex flex-col gap-2">
+            {categoryPool.length > 0 && (
+              <Select
+                value={activeCategory || "all"}
+                onValueChange={(v) => setActiveCategory(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-full" aria-label="Filter by topic">
+                  <SelectValue placeholder="All topics" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All topics</SelectItem>
+                  {categoryPool.map((c) => (
+                    <SelectItem key={c} value={c}>{categoryName(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {tagPool.length > 0 && (
+              <Select
+                value={activeTag || "all"}
+                onValueChange={(v) => setActiveTag(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-full" aria-label="Filter by tag">
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All tags</SelectItem>
+                  {tagPool.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {(activeCategory || activeTag || search) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="w-full"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
+                <X className="size-3.5" aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 

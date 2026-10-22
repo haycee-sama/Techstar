@@ -76,6 +76,20 @@ export function AdminTopbar() {
     };
   }, [setTheme, resolvedTheme]);
 
+  // Sync the resolved theme back to the admin theme localStorage so
+  // the preference survives navigation away + back to admin. Without
+  // this, the shared ThemeToggle changes the live theme via setTheme()
+  // but the ADMIN_THEME_KEY in localStorage stays stale — so re-entering
+  // admin would revert to the old saved value.
+  useEffect(() => {
+    if (!resolvedTheme) return;
+    try {
+      window.localStorage.setItem(ADMIN_THEME_KEY, resolvedTheme);
+    } catch {
+      // ignore
+    }
+  }, [resolvedTheme]);
+
   function openCommand() {
     window.dispatchEvent(new CustomEvent("techstar:open-command"));
   }

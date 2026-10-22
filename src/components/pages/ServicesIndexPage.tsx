@@ -18,6 +18,13 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Breadcrumbs } from "@/components/site/Breadcrumbs";
 import { EmptyState } from "@/components/site/EmptyState";
 import { CtaBandSection } from "@/components/sections/CtaBandSection";
@@ -210,12 +217,30 @@ export function ServicesIndexPage() {
                 style={{ color: "var(--text-muted)" }}
                 aria-hidden
               />
+              {/* Mobile: dropdown select for category */}
+              <Select
+                value={activeGroup}
+                onValueChange={(v) => setActiveGroup(v as CategoryGroup)}
+              >
+                <SelectTrigger
+                  className="sm:hidden w-[180px]"
+                  aria-label="Filter by category"
+                >
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["All", "Security", "Infrastructure", "Smart Building", "IT"] as CategoryGroup[]).map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Desktop: segmented control */}
               <ToggleGroup
                 type="single"
                 value={activeGroup}
                 onValueChange={(v) => setActiveGroup((v as CategoryGroup) || "All")}
                 aria-label="Filter by category"
-                className="flex-wrap justify-start"
+                className="hidden sm:flex flex-wrap justify-start"
               >
                 {(["All", "Security", "Infrastructure", "Smart Building", "IT"] as CategoryGroup[]).map((g) => (
                   <ToggleGroupItem
@@ -238,9 +263,9 @@ export function ServicesIndexPage() {
             </div>
           </div>
 
-          {/* Tag chips */}
+          {/* Tag chips — desktop only. Mobile uses the Select below. */}
           {tagPool.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex mt-3 flex-wrap items-center gap-2">
               <span className="eyebrow">Tags</span>
               {tagPool.map((tag) => {
                 const isActive = activeTag === tag;
@@ -272,6 +297,38 @@ export function ServicesIndexPage() {
                   <X className="size-3" aria-hidden />
                   Clear filters
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Mobile: tag dropdown + clear filters */}
+          {tagPool.length > 0 && (
+            <div className="sm:hidden mt-3 flex items-center gap-2">
+              <Select
+                value={activeTag || "all"}
+                onValueChange={(v) => setActiveTag(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-full" aria-label="Filter by tag">
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All tags</SelectItem>
+                  {tagPool.map((tag) => (
+                    <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(activeTag || search || activeGroup !== "All") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="shrink-0"
+                  style={{ borderColor: "var(--border-strong)" }}
+                >
+                  <X className="size-3.5" aria-hidden />
+                  Clear
+                </Button>
               )}
             </div>
           )}
