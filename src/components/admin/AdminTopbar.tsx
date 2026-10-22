@@ -74,7 +74,6 @@ export function AdminTopbar() {
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync: persist the current resolved theme to admin localStorage
